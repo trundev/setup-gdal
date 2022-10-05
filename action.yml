@@ -21,6 +21,11 @@ inputs:
     default: ""
     required: false
     type: string
+  use-gis-sdk:
+    description: "Windows builds: use development kit from www.gisinternals.com"
+    default: true
+    required: false
+    type: boolean
   # The variables below are to replace lack of "runs.env" section in composite actions
   GIS_SDK_URL:
     description: "GIS SDK release package from https://www.gisinternals.com/sdk.php"
@@ -85,7 +90,7 @@ runs:
       path: ${{ inputs.base-dir }}/gdal
 
   - name: Download GIS SDK release
-    if: ${{ runner.os == 'Windows' && steps.wheel-cache.outputs.cache-hit != 'true' }}
+    if: ${{ runner.os == 'Windows' && steps.wheel-cache.outputs.cache-hit != 'true' && inputs.use-gis-sdk == 'true' }}
     id: download-sdk
     shell: pwsh
     run: |
@@ -101,6 +106,30 @@ runs:
       $SDK_BASE = Get-Item $(Join-Path $GDAL_SDK_DIR "release-*")
       echo "sdk-dir=$SDK_BASE" >> ${env:GITHUB_OUTPUT}
       echo "'download-sdk.outputs.sdk-dir' set to $SDK_BASE"
+
+  - name: Prepare install (Windows)
+    if: ${{ runner.os == 'Windows' && steps.download-sdk.outputs.sdk-dir == '' && steps.wheel-cache.outputs.cache-hit != 'true' }}
+    id: install-windows
+    shell: pwsh
+    run: |
+      $CMAKE_OPTIONS = "-G 'MinGW Makefiles' -DCMAKE_PREFIX_PATH=/mingw64"
+      echo "cmake-options=$CMAKE_OPTIONS" >> ${env:GITHUB_OUTPUT}
+      echo "'install-windows.outputs.cmake-options' set to $CMAKE_OPTIONS"
+
+  - name: Install prerequisites (Windows)
+    if: ${{ steps.install-windows.outcome == 'success' }}
+    uses: msys2/setup-msys2@v2
+    with:
+      msystem: MINGW64
+      update: true
+      # See: https://github.com/OSGeo/gdal/blob/1d1b02a/.github/workflows/cmake_builds.yml#L313-L318
+      install: |
+        base-devel git mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake mingw-w64-x86_64-ccache
+        mingw-w64-x86_64-pcre mingw-w64-x86_64-xerces-c mingw-w64-x86_64-zstd
+        mingw-w64-x86_64-geos mingw-w64-x86_64-libspatialite mingw-w64-x86_64-proj
+        mingw-w64-x86_64-cgal mingw-w64-x86_64-libfreexl mingw-w64-x86_64-hdf5 mingw-w64-x86_64-netcdf mingw-w64-x86_64-poppler mingw-w64-x86_64-postgresql
+        mingw-w64-x86_64-libgeotiff mingw-w64-x86_64-libpng mingw-w64-x86_64-libtiff mingw-w64-x86_64-openjpeg
+        mingw-w64-x86_64-python-pip mingw-w64-x86_64-python-numpy mingw-w64-x86_64-python-pytest mingw-w64-x86_64-python-setuptools mingw-w64-x86_64-python-lxml
 
   - name: Install prerequisites (Linux)
     if: ${{ runner.os == 'Linux' }}
@@ -161,14 +190,16 @@ runs:
       $INSTALL_DIR = New-Item -EA SilentlyContinue -ItemType directory ${{ inputs.base-dir }}/install-gdal
 
       echo "# cmake configure, options:"
-      $CMAKE_OPTIONS = "${{ inputs.CMAKE_OPTIONS }}"
+      $CMAKE_OPTIONS = "${{ inputs.CMAKE_OPTIONS }} ${{ steps.install-windows.outputs.cmake-options }}"
       $CMAKE_OPTIONS += " ${{ steps.install-linux.outputs.cmake-options }} ${{ steps.install-macos.outputs.cmake-options }}"
       echo $CMAKE_OPTIONS
-      cmake $CMAKE_OPTIONS.Split() -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -S ${{ inputs.base-dir }}/gdal -B "$BUILD_DIR"
+      #REMOVEME: Windows/msys2 experiment only...
+      msys2 -c "cmake $CMAKE_OPTIONS -DCMAKE_INSTALL_PREFIX='$INSTALL_DIR' -S ${{ inputs.base-dir }}/gdal -B '$BUILD_DIR'"
       if ($LASTEXITCODE) {exit $LASTEXITCODE}
 
       echo "# cmake build and install"
-      cmake --build "$BUILD_DIR" --target install
+      #REMOVEME: Windows/msys2 experiment only...
+      msys2 -c "cmake --build '$BUILD_DIR' --target install"
       if ($LASTEXITCODE) {exit $LASTEXITCODE}
 
       echo "install-dir=$INSTALL_DIR" >> ${env:GITHUB_OUTPUT}

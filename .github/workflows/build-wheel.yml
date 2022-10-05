@@ -28,6 +28,14 @@ on:
         options:
         - false
         - true
+      use-gis-sdk:
+        description: "Use development kit from www.gisinternals.com for Windows builds"
+        required: false
+        default: "true"
+        type: choice
+        options:
+        - true
+        - false
 
 jobs:
   build:
@@ -47,6 +55,7 @@ jobs:
       with:
         gdal-version: ${{ github.event.inputs.gdal-version }}
         rebuild-cache: ${{ github.event.inputs.rebuild-cache }}
+        use-gis-sdk: ${{ github.event.inputs.use-gis-sdk }}
 
     # Keep the wheel as an artifact even in case of failure, to allow investigation
     - name: Select artifact name
