@@ -1,0 +1,237 @@
+name: Setup GDAL
+description: Install Python GDAL
+inputs:
+  base-dir:
+    description: "Intermediate folder to create GDAL wheel package"
+    default: "GDAL~"
+    required: false
+    type: string
+  rebuild-cache:
+    description: "Flush the cached wheel package"
+    default: false
+    required: false
+    type: boolean
+  gdal-version:
+    description: "Version of GDAL to setup (OSGeo/gdal repository reference)"
+    default: "v3.5.0"
+    required: false
+    type: string
+  # The variables below are to replace lack of "runs.env" section in composite actions
+  GIS_SDK_URL:
+    description: "GIS SDK release package from https://www.gisinternals.com/sdk.php"
+    default: "https://download.gisinternals.com/sdk/downloads/release-1930-x64-dev.zip"
+    required: false
+    type: string
+outputs:
+  wheel-path:
+    description: "Path to generated GDAL Python wheel package"
+    value: ${{ steps.artifact-info.outputs.wheel-path }}
+
+runs:
+  using: "composite"
+  steps:
+  - name: Select cache key
+    id: info
+    shell: pwsh
+    run: |
+      $VER = python -c "import sys; print('{0.major}.{0.minor}'.format(sys.version_info))"
+      $KEY = "${{ runner.os }}-py${VER}-GDAL${{ inputs.gdal-version }}"
+      echo "::set-output name=cache-key::$KEY"
+      echo "'info.outputs.cache-key' set to $KEY"
+
+  - uses: actions/github-script@v6
+    if: inputs.rebuild-cache == 'true'
+    with:
+      script: |
+        github.rest.actions.deleteActionsCacheByKey({
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          key: "${{ steps.info.outputs.cache-key }}",
+        })
+
+  - uses: actions/cache@v3
+    id: wheel-cache
+    with:
+      path: |
+        ${{ inputs.base-dir }}/*.whl
+      key: ${{ steps.info.outputs.cache-key }}
+
+  - name: Clone GDAL sources
+    if: steps.wheel-cache.outputs.cache-hit != 'true'
+    uses: actions/checkout@v3
+    with:
+      repository: osgeo/gdal
+      ref: ${{ inputs.gdal-version }}
+      path: ${{ inputs.base-dir }}/gdal
+
+  - name: Download GIS SDK release
+    if: ${{ runner.os == 'Windows' && steps.wheel-cache.outputs.cache-hit != 'true' }}
+    id: download-sdk
+    shell: pwsh
+    run: |
+      $SRC_URI = [uri]"${{ inputs.GIS_SDK_URL }}"
+      $SRC_ZIP = Join-Path "${{ runner.temp }}" $SRC_URI.Segments[-1]
+      echo "Downloading from $SRC_URI..."
+      Invoke-WebRequest -H @{Accept='application/octet-stream'} $SRC_URI -o $SRC_ZIP
+      if ($proc.ExitCode) {exit $proc.ExitCode}
+
+      $GDAL_SDK_DIR="${{ runner.temp }}/gdal_sdk"
+      Expand-Archive $SRC_ZIP -DestinationPath $GDAL_SDK_DIR
+      if ($proc.ExitCode) {exit $proc.ExitCode}
+      $SDK_BASE = Get-Item $(Join-Path $GDAL_SDK_DIR "release-*")
+      echo "::set-output name=sdk-dir::$SDK_BASE"
+      echo "'download-sdk.outputs.sdk-dir' set to $SDK_BASE"
+
+  - name: Install prerequisites (Linux)
+    if: ${{ runner.os == 'Linux' }}
+    shell: pwsh
+    run: |
+      # See: https://github.com/OSGeo/gdal/blob/1d1b02a/.github/workflows/cmake_builds.yml#L54-L63
+      sudo apt-get install -y -q `
+          postgresql-12 postgresql-12-postgis-3 postgresql-client-12 postgresql-12-postgis-3-scripts `
+          libfreexl-dev libxml2-dev libspatialite-dev libgeos-dev libproj-dev libjpeg-dev libgif-dev `
+          poppler-utils libpoppler-dev libpoppler-private-dev unixodbc-dev libheif-dev `
+          ccache swig
+
+  - name: Install prerequisites (macOS)
+    if: ${{ runner.os == 'macOS' }}
+    shell: pwsh
+    run: |
+      # See: https://github.com/OSGeo/gdal/blob/1d1b02a/.github/workflows/cmake_builds.yml#L583-L587
+      brew install postgresql || brew link postgresql
+      brew install pkg-config freexl libxml2 libspatialite geos proj libgeotiff openjpeg giflib libaec postgis poppler doxygen unixodbc jpeg-turbo aom jpeg-xl libheif
+      brew install ccache swig curl
+      # gdal is automatically installed as a dependency for postgis
+      brew uninstall --ignore-dependencies gdal
+
+  - name: Build GDAL and wheel (cmake)
+    if: ${{ steps.download-sdk.outputs.sdk-dir == '' && steps.wheel-cache.outputs.cache-hit != 'true' }}
+    id: build-gdal
+    shell: pwsh
+    run: |
+      # Prerequisites: numpy is needed to build gdal_array
+      python -m pip install -U pip setuptools wheel numpy
+
+      $BUILD_DIR = New-Item -EA SilentlyContinue -ItemType directory ${{ inputs.base-dir }}/build
+      $INSTALL_DIR = New-Item -EA SilentlyContinue -ItemType directory ${{ inputs.base-dir }}/install-gdal
+
+      # Configure
+      cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -S ${{ inputs.base-dir }}/gdal -B "$BUILD_DIR"
+      if ($proc.ExitCode) {exit $proc.ExitCode}
+      # Build and install
+      cmake --build "$BUILD_DIR" --target install
+      if ($proc.ExitCode) {exit $proc.ExitCode}
+
+      echo "::set-output name=install-dir::$INSTALL_DIR"
+      echo "'build-gdal.outputs.install-dir' set to $INSTALL_DIR"
+
+      cd "$BUILD_DIR/swig/python"
+      python setup.py bdist_wheel --dist-dir "$BUILD_DIR/.."
+
+  - name: Create GDAL wheel (from SDK)
+    if: ${{ steps.download-sdk.outputs.sdk-dir != '' && steps.wheel-cache.outputs.cache-hit != 'true' }}
+    shell: pwsh
+    run: |
+      # Prerequisites: numpy is needed to build gdal_array
+      python -m pip install -U pip setuptools wheel numpy
+      if ($LASTEXITCODE) {exit $LASTEXITCODE}
+
+      $GDAL_BASE = Get-Item "${{ inputs.base-dir }}/gdal"
+      $SDK_BASE = Get-Item "${{ steps.download-sdk.outputs.sdk-dir }}"
+
+      $env:INCLUDE="$GDAL_BASE/gcore;$GDAL_BASE/gnm;$SDK_BASE/include"
+      echo "INCLUDE set to $env:INCLUDE"
+      $env:LIB="$SDK_BASE/lib"
+      echo "LIB set to $env:LIB"
+
+      python -m pip wheel gdal==${{ inputs.gdal-version }} --wheel-dir ${{ inputs.base-dir }}
+
+  - name: Locate GDAL wheel
+    id: artifact-info
+    shell: pwsh
+    run: |
+      $GDAL_WHEEL = Get-Item "${{ inputs.base-dir }}\GDAL-*.whl"
+      echo "::set-output name=wheel-path::$GDAL_WHEEL"
+      echo "'artifact-info.outputs.wheel-path' set to $GDAL_WHEEL"
+
+  - name: Update ${{ steps.artifact-info.outputs.wheel-path }} with GDAL DLLs
+    if: steps.wheel-cache.outputs.cache-hit != 'true'
+    # GDAL and Python 3.8 problem:
+    # With USE_PATH_FOR_GDAL_PYTHON and python 3.8, "osgeo\__init__.py" pass all directories
+    # from PATH to os.add_dll_directory(), which fails if any of them is missing.
+    # Fix:
+    # Add all GDAL DLLs to the 'osgeo' location
+    shell: pwsh
+    run: |
+      cd ${{ inputs.base-dir }}
+      python -m wheel unpack ${{ steps.artifact-info.outputs.wheel-path }}
+      if ($LASTEXITCODE) {exit $LASTEXITCODE}
+
+      $UNPACK_DIR = Get-ChildItem -Directory "GDAL-*"
+      $OSGEO_DIR = Join-Path $UNPACK_DIR "osgeo"
+      if ("${{ steps.download-sdk.outputs.sdk-dir }}") {
+        $GDAL_BIN = Get-Item "${{ steps.download-sdk.outputs.sdk-dir }}/bin"
+
+        echo "Copy all GDAL DLLs to $OSGEO_DIR (avoid USE_PATH_FOR_GDAL_PYTHON)"
+        Copy-Item "$GDAL_BIN/*.dll" "$OSGEO_DIR"
+
+        $OSGEO_DIR += "_utils"
+        echo "Copy all GDAL-driver DLLs to $OSGEO_DIR\plugins"
+        Copy-Item -Recurse "$GDAL_BIN/gdal/plugins" "$OSGEO_DIR\plugins"
+
+        # Confusing ERROR messages workaround:
+        # Move plugin DLLs that can't be loaded to "plugins-optional"
+        New-Item -EA SilentlyContinue -ItemType directory $OSGEO_DIR\plugins-optional
+        Move-Item -EA SilentlyContinue $OSGEO_DIR\plugins\gdal_GEOR.dll,$OSGEO_DIR\plugins\ogr_OCI.dll $OSGEO_DIR\plugins-optional
+
+        echo "Copy all PROJ7 files to $OSGEO_DIR\proj7"
+        Copy-Item -Recurse "$GDAL_BIN/proj7/share" "$OSGEO_DIR\proj7"
+
+        echo "Copy all GDAL programs to $OSGEO_DIR\apps"
+        Copy-Item -Recurse "$GDAL_BIN/gdal/apps" "$OSGEO_DIR\apps"
+      } elseif ("${{ steps.build-gdal.outputs.install-dir }}") {
+        $GDAL_LIB = Get-Item "${{ steps.build-gdal.outputs.install-dir }}/lib"
+
+        echo "Copy all GDAL .so/.dylib to $OSGEO_DIR"
+        Copy-Item @("$GDAL_LIB/*.so*"; "$GDAL_LIB/*.dylib") "$OSGEO_DIR"
+
+        $OSGEO_DIR += "_utils"
+        $GDAL_BIN = Get-Item "${{ steps.build-gdal.outputs.install-dir }}/bin"
+        New-Item -EA SilentlyContinue -ItemType directory @("$OSGEO_DIR/apps"; "$OSGEO_DIR/plugins")
+
+        echo "Copy all GDAL programs to $OSGEO_DIR/apps"
+        Copy-Item -Exclude *.py "$GDAL_BIN/*" "$OSGEO_DIR/apps"
+      }
+
+      $GDAL_WHEEL = Get-Item "${{ steps.artifact-info.outputs.wheel-path }}"
+      python -m wheel pack $UNPACK_DIR --dest-dir $GDAL_WHEEL.Directory
+
+  - name: Install wheel ${{ steps.artifact-info.outputs.wheel-path }}
+    shell: pwsh
+    run: |
+      python -m pip install ${{ steps.artifact-info.outputs.wheel-path }}
+      if ($LASTEXITCODE) {exit $LASTEXITCODE}
+
+      $OSGEO_DIR = python -c "from importlib import util; osgeo=util.find_spec('osgeo'); print(osgeo.submodule_search_locations[0])"
+      if ("${{ runner.os }}" -eq "Windows") {
+        echo "$OSGEO_DIR" >> ${env:GITHUB_PATH}
+        echo "Path added: $OSGEO_DIR"
+      } else {
+        $LD_LIBRARY_PATH="${OSGEO_DIR}:${{ env.LD_LIBRARY_PATH}}"
+        echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> ${env:GITHUB_ENV}
+        echo "LD_LIBRARY_PATH set to $LD_LIBRARY_PATH"
+      }
+
+      $OSGEO_DIR = python -c "from importlib import util; osgeo=util.find_spec('osgeo_utils'); print(osgeo.submodule_search_locations[0])"
+
+      $GDAL_DRIVER_PATH = Join-Path $OSGEO_DIR "plugins"
+      if (Test-Path $GDAL_DRIVER_PATH) {
+        echo "GDAL_DRIVER_PATH=$GDAL_DRIVER_PATH" >> ${env:GITHUB_ENV}
+        echo "GDAL_DRIVER_PATH set to $GDAL_DRIVER_PATH"
+      }
+
+      $PROJ_LIB = Join-Path $OSGEO_DIR "proj7"
+      if (Test-Path $PROJ_LIB) {
+        echo "PROJ_LIB=$PROJ_LIB" >> ${env:GITHUB_ENV}
+        echo "PROJ_LIB set to $PROJ_LIB"
+      }

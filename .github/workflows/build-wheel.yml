@@ -1,0 +1,63 @@
+name: Build GDAL python wheel
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner-image:
+        description: 'Operating system image to use'
+        required: true
+        default: 'windows-latest'
+        type: choice
+        options:
+        - windows-latest
+        - ubuntu-latest
+        - macos-latest
+      python-version:
+        description: "Version of Python to use"
+        required: true
+        default: "3.10"
+      gdal-version:
+        description: "Version of GDAL to build"
+        required: true
+        default: "v3.5.2"
+      rebuild-cache:
+        description: "Delete existing wheel cache and create a new one"
+        required: false
+        default: "false"
+
+jobs:
+  build:
+    runs-on: ${{ github.event.inputs.runner-image }}
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python ${{ github.event.inputs.python-version }} in ${{ github.event.inputs.runner-image }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ github.event.inputs.python-version }}
+
+    - name: Build GDAL ${{ github.event.inputs.gdal-version }}
+      uses: ./.
+      id: setup-gdal
+      with:
+        gdal-version: ${{ github.event.inputs.gdal-version }}
+        rebuild-cache: ${{ github.event.inputs.rebuild-cache }}
+
+    - name: Examine result
+      shell: pwsh
+      run: |
+        python -m osgeo_utils.samples.gdalinfo --version
+        python -c "from osgeo import gdal;print(gdal.VersionInfo(None))"
+        echo "Wheel package ${{ steps.setup-gdal.outputs.wheel-path }}"
+
+        $GDAL_WHEEL = Get-Item "${{ steps.setup-gdal.outputs.wheel-path }}"
+        echo "WHEEL_NAME=$($GDAL_WHEEL.BaseName)" >> ${env:GITHUB_ENV}
+        echo "WHEEL_NAME set to $($GDAL_WHEEL.BaseName)"
+
+    - name: "Upload artifact: ${{ env.WHEEL_NAME }}"
+      uses: actions/upload-artifact@v3
+      with:
+        name: "${{ env.WHEEL_NAME }}"
+        path: |
+          ${{ steps.setup-gdal.outputs.wheel-path }}
