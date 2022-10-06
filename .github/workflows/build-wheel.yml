@@ -24,6 +24,10 @@ on:
         description: "Delete existing wheel cache and create a new one"
         required: false
         default: "false"
+        type: choice
+        options:
+        - false
+        - true
 
 jobs:
   build:
@@ -48,8 +52,12 @@ jobs:
       shell: pwsh
       run: |
         python -m osgeo_utils.samples.gdalinfo --version
+        python -m osgeo_utils.samples.gdalinfo --build
+        python -m osgeo_utils.samples.gdalinfo --formats
         python -c "from osgeo import gdal;print(gdal.VersionInfo(None))"
         echo "Wheel package ${{ steps.setup-gdal.outputs.wheel-path }}"
+        echo "OSGeo path ${{ steps.setup-gdal.outputs.osgeo-path }}"
+        echo "OSGeo utils path ${{ steps.setup-gdal.outputs.utils-path }}"
 
         $GDAL_WHEEL = Get-Item "${{ steps.setup-gdal.outputs.wheel-path }}"
         echo "WHEEL_NAME=$($GDAL_WHEEL.BaseName)" >> ${env:GITHUB_ENV}

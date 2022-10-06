@@ -26,6 +26,12 @@ outputs:
   wheel-path:
     description: "Path to generated GDAL Python wheel package"
     value: ${{ steps.artifact-info.outputs.wheel-path }}
+  osgeo-path:
+    description: "Path to installed Python osgeo module/package"
+    value: ${{ steps.install-wheel.outputs.osgeo-path }}
+  utils-path:
+    description: "Path to installed Python osgeo_utils module"
+    value: ${{ steps.install-wheel.outputs.utils-path }}
 
 runs:
   using: "composite"
@@ -43,11 +49,15 @@ runs:
     if: inputs.rebuild-cache == 'true'
     with:
       script: |
-        github.rest.actions.deleteActionsCacheByKey({
-          owner: context.repo.owner,
-          repo: context.repo.repo,
-          key: "${{ steps.info.outputs.cache-key }}",
-        })
+        try {
+          const run = await github.rest.actions.deleteActionsCacheByKey({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            key: "${{ steps.info.outputs.cache-key }}",
+          })
+        } catch (error) {
+          console.log("Delete cache failed: " + error.message)
+        }
 
   - uses: actions/cache@v3
     id: wheel-cache
@@ -117,10 +127,10 @@ runs:
 
       # Configure
       cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -S ${{ inputs.base-dir }}/gdal -B "$BUILD_DIR"
-      if ($proc.ExitCode) {exit $proc.ExitCode}
+      if ($LASTEXITCODE) {exit $LASTEXITCODE}
       # Build and install
       cmake --build "$BUILD_DIR" --target install
-      if ($proc.ExitCode) {exit $proc.ExitCode}
+      if ($LASTEXITCODE) {exit $LASTEXITCODE}
 
       echo "::set-output name=install-dir::$INSTALL_DIR"
       echo "'build-gdal.outputs.install-dir' set to $INSTALL_DIR"
@@ -207,6 +217,7 @@ runs:
       python -m wheel pack $UNPACK_DIR --dest-dir $GDAL_WHEEL.Directory
 
   - name: Install wheel ${{ steps.artifact-info.outputs.wheel-path }}
+    id: install-wheel
     shell: pwsh
     run: |
       python -m pip install ${{ steps.artifact-info.outputs.wheel-path }}
@@ -221,8 +232,12 @@ runs:
         echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> ${env:GITHUB_ENV}
         echo "LD_LIBRARY_PATH set to $LD_LIBRARY_PATH"
       }
+      echo "::set-output name=osgeo-path::$OSGEO_DIR"
+      echo "'install-wheel.outputs.osgeo-path' set to $OSGEO_DIR"
 
       $OSGEO_DIR = python -c "from importlib import util; osgeo=util.find_spec('osgeo_utils'); print(osgeo.submodule_search_locations[0])"
+      echo "::set-output name=utils-path::$OSGEO_DIR"
+      echo "'install-wheel.outputs.utils-path' set to $OSGEO_DIR"
 
       $GDAL_DRIVER_PATH = Join-Path $OSGEO_DIR "plugins"
       if (Test-Path $GDAL_DRIVER_PATH) {
