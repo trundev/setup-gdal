@@ -22,6 +22,11 @@ inputs:
     default: "https://download.gisinternals.com/sdk/downloads/release-1930-x64-dev.zip"
     required: false
     type: string
+  CMAKE_OPTIONS:
+    description: "CMake GDAL project configure common options"
+    default: "-DCMAKE_BUILD_TYPE=Release"
+    required: false
+    type: string
 outputs:
   wheel-path:
     description: "Path to generated GDAL Python wheel package"
@@ -94,6 +99,7 @@ runs:
 
   - name: Install prerequisites (Linux)
     if: ${{ runner.os == 'Linux' }}
+    id: install-linux
     shell: pwsh
     run: |
       # See: https://github.com/OSGeo/gdal/blob/1d1b02a/.github/workflows/cmake_builds.yml#L54-L63
@@ -103,18 +109,35 @@ runs:
           poppler-utils libpoppler-dev libpoppler-private-dev unixodbc-dev libheif-dev `
           ccache swig
 
+      $CMAKE_OPTIONS = ""
+      echo "::set-output name=cmake-options::$CMAKE_OPTIONS"
+      echo "'install-linux.outputs.cmake-options' set to $CMAKE_OPTIONS"
+
   - name: Install prerequisites (macOS)
     if: ${{ runner.os == 'macOS' }}
+    id: install-macos
     shell: pwsh
     run: |
       # See: https://github.com/OSGeo/gdal/blob/1d1b02a/.github/workflows/cmake_builds.yml#L583-L587
-      brew install postgresql || brew link postgresql
-      brew install pkg-config freexl libxml2 libspatialite geos proj libgeotiff openjpeg giflib libaec postgis poppler doxygen unixodbc jpeg-turbo aom jpeg-xl libheif
-      brew install ccache swig curl
+      if ('${{ steps.wheel-cache.outputs.cache-hit }}' -ne 'true') {
+        # Complete set of packages, mandatory if building wheel
+        brew install postgresql || brew link postgresql
+        brew install pkg-config openjpeg giflib doxygen unixodbc jpeg-turbo aom jpeg-xl libheif
+        brew install ccache swig
+
+        $CMAKE_OPTIONS = "-DCURL_ROOT=/usr/local/opt/curl"
+        echo "::set-output name=cmake-options::$CMAKE_OPTIONS"
+        echo "'install-macos.outputs.cmake-options' set to $CMAKE_OPTIONS"
+      }
+      # Note: dependencies for postgis:
+      # cfitsio, popt, epsilon, expat, freexl, geos, libaec, hdf5, json-c, libxml2, libdap, proj, libgeotiff,
+      # librttopo, minizip, libspatialite, netcdf, numpy, nspr, nss, poppler, xerces-c, gdal, protobuf, protobuf-c,
+      # boost, eigen, cgal and sfcgal
+      brew install postgis
       # gdal is automatically installed as a dependency for postgis
       brew uninstall --ignore-dependencies gdal
 
-  - name: Build GDAL and wheel (cmake)
+  - name: Build GDAL and wheel (CMake)
     if: ${{ steps.download-sdk.outputs.sdk-dir == '' && steps.wheel-cache.outputs.cache-hit != 'true' }}
     id: build-gdal
     shell: pwsh
@@ -125,10 +148,14 @@ runs:
       $BUILD_DIR = New-Item -EA SilentlyContinue -ItemType directory ${{ inputs.base-dir }}/build
       $INSTALL_DIR = New-Item -EA SilentlyContinue -ItemType directory ${{ inputs.base-dir }}/install-gdal
 
-      # Configure
-      cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -S ${{ inputs.base-dir }}/gdal -B "$BUILD_DIR"
+      echo "# cmake configure, options:"
+      $CMAKE_OPTIONS = "${{ inputs.CMAKE_OPTIONS }}"
+      $CMAKE_OPTIONS += " ${{ steps.install-linux.outputs.cmake-options }} ${{ steps.install-macos.outputs.cmake-options }}"
+      echo $CMAKE_OPTIONS
+      cmake $CMAKE_OPTIONS.Split() -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -S ${{ inputs.base-dir }}/gdal -B "$BUILD_DIR"
       if ($LASTEXITCODE) {exit $LASTEXITCODE}
-      # Build and install
+
+      echo "# cmake build and install"
       cmake --build "$BUILD_DIR" --target install
       if ($LASTEXITCODE) {exit $LASTEXITCODE}
 
