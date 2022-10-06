@@ -104,7 +104,7 @@ runs:
     run: |
       # See: https://github.com/OSGeo/gdal/blob/1d1b02a/.github/workflows/cmake_builds.yml#L54-L63
       sudo apt-get install -y -q `
-          postgresql-12 postgresql-12-postgis-3 postgresql-client-12 postgresql-12-postgis-3-scripts `
+          postgresql-*-postgis-3 postgresql-client-* postgresql-*-postgis-3-scripts `
           libfreexl-dev libxml2-dev libspatialite-dev libgeos-dev libproj-dev libjpeg-dev libgif-dev `
           poppler-utils libpoppler-dev libpoppler-private-dev unixodbc-dev libheif-dev `
           ccache swig

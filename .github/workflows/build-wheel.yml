@@ -37,7 +37,7 @@ jobs:
     - uses: actions/checkout@v3
 
     - name: Set up Python ${{ github.event.inputs.python-version }} in ${{ github.event.inputs.runner-image }}
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ github.event.inputs.python-version }}
 
@@ -54,7 +54,8 @@ jobs:
         python -m osgeo_utils.samples.gdalinfo --version
         python -m osgeo_utils.samples.gdalinfo --build
         python -m osgeo_utils.samples.gdalinfo --formats
-        python -c "from osgeo import gdal;print(gdal.VersionInfo(None))"
+        python -m osgeo_utils.samples.ogrinfo --formats
+        python -c "from osgeo import gdal; print(gdal.VersionInfo(None))"
         echo "Wheel package ${{ steps.setup-gdal.outputs.wheel-path }}"
         echo "OSGeo path ${{ steps.setup-gdal.outputs.osgeo-path }}"
         echo "OSGeo utils path ${{ steps.setup-gdal.outputs.utils-path }}"

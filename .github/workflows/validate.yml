@@ -1,0 +1,93 @@
+name: Validate workflow action
+
+on:
+  push:
+    branches: [ main, '**-test' ]
+  pull_request:
+
+jobs:
+  rebuid-cache:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        python-version: ['3.10', '3.6']
+        gdal-version: ['v3.5.2']
+        exclude:
+          - os: macos-latest    # Simplify tests under macOS
+            python-version: '3.6'
+      fail-fast: false
+
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: "${{ matrix.python-version }}"
+
+    - name: Set up GDAL ${{ matrix.gdal-version }}
+      uses: ./.
+      id: setup-gdal
+      with:
+        gdal-version: "${{ matrix.gdal-version }}"
+        rebuild-cache: true
+
+    - name: Check the package
+      shell: pwsh
+      run: python -c "from osgeo import gdal; print(gdal.__name__)"
+
+  # This is the same as above, but w/o "rebuild-cache: true"
+  use-cache:
+    needs: rebuid-cache
+    timeout-minutes: 10   # The cache makes it much faster, but not under macOS
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        python-version: ['3.10']
+        gdal-version: ['v3.5.2']
+        exclude:
+          - os: macos-latest      # Simplify tests under macOS
+            python-version: '3.6'
+      fail-fast: false
+
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: "${{ matrix.python-version }}"
+
+    - name: Set up GDAL ${{ matrix.gdal-version }}
+      uses: ./.
+      id: setup-gdal
+      with:
+        gdal-version: "${{ matrix.gdal-version }}"
+
+    - name: Check the package
+      shell: pwsh
+      run: |
+        python -m osgeo_utils.samples.gdalinfo --version
+        echo "Wheel package ${{ steps.setup-gdal.outputs.wheel-path }}"
+        echo "OSGeo path ${{ steps.setup-gdal.outputs.osgeo-path }}"
+        echo "OSGeo utils path ${{ steps.setup-gdal.outputs.utils-path }}"
+
+        # GDAL only
+        python -c "from osgeo import gdal; print(gdal.__name__)"
+        if ($LASTEXITCODE) {exit $LASTEXITCODE}
+
+        # Additional modules (gdal_array requires numpy)
+        python -m pip install numpy
+        python -c "from osgeo import gdalconst, gdal_array, gnm, ogr, osr"
+
+    - name: Check utilities
+      shell: pwsh
+      working-directory: ${{ steps.setup-gdal.outputs.utils-path }}
+      run: |
+        ForEach ($TOOL in @("./apps/gdal_translate"; "./apps/gdalwarp"; "python gdal_merge.py")) {
+          echo "${TOOL}:"
+          Invoke-Expression "$TOOL --version"
+          if ($LASTEXITCODE) {exit $LASTEXITCODE}
+        }
