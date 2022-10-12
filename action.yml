@@ -47,7 +47,7 @@ runs:
     run: |
       $VER = python -c "import sys; print('{0.major}.{0.minor}'.format(sys.version_info))"
       $KEY = "${{ runner.os }}-py${VER}-GDAL${{ inputs.gdal-version }}"
-      echo "::set-output name=cache-key::$KEY"
+      echo "cache-key=$KEY" >> ${env:GITHUB_OUTPUT}
       echo "'info.outputs.cache-key' set to $KEY"
 
   - uses: actions/github-script@v6
@@ -94,7 +94,7 @@ runs:
       Expand-Archive $SRC_ZIP -DestinationPath $GDAL_SDK_DIR
       if ($proc.ExitCode) {exit $proc.ExitCode}
       $SDK_BASE = Get-Item $(Join-Path $GDAL_SDK_DIR "release-*")
-      echo "::set-output name=sdk-dir::$SDK_BASE"
+      echo "sdk-dir=$SDK_BASE" >> ${env:GITHUB_OUTPUT}
       echo "'download-sdk.outputs.sdk-dir' set to $SDK_BASE"
 
   - name: Install prerequisites (Linux)
@@ -110,7 +110,7 @@ runs:
           ccache swig
 
       $CMAKE_OPTIONS = ""
-      echo "::set-output name=cmake-options::$CMAKE_OPTIONS"
+      echo "cmake-options=$CMAKE_OPTIONS" >> ${env:GITHUB_OUTPUT}
       echo "'install-linux.outputs.cmake-options' set to $CMAKE_OPTIONS"
 
   - name: Install prerequisites (macOS)
@@ -126,7 +126,7 @@ runs:
         brew install ccache swig
 
         $CMAKE_OPTIONS = "-DCURL_ROOT=/usr/local/opt/curl"
-        echo "::set-output name=cmake-options::$CMAKE_OPTIONS"
+        echo "cmake-options=$CMAKE_OPTIONS" >> ${env:GITHUB_OUTPUT}
         echo "'install-macos.outputs.cmake-options' set to $CMAKE_OPTIONS"
       }
       # Note: dependencies for postgis:
@@ -159,7 +159,7 @@ runs:
       cmake --build "$BUILD_DIR" --target install
       if ($LASTEXITCODE) {exit $LASTEXITCODE}
 
-      echo "::set-output name=install-dir::$INSTALL_DIR"
+      echo "install-dir=$INSTALL_DIR" >> ${env:GITHUB_OUTPUT}
       echo "'build-gdal.outputs.install-dir' set to $INSTALL_DIR"
 
       cd "$BUILD_DIR/swig/python"
@@ -188,7 +188,7 @@ runs:
     shell: pwsh
     run: |
       $GDAL_WHEEL = Get-Item "${{ inputs.base-dir }}\GDAL-*.whl"
-      echo "::set-output name=wheel-path::$GDAL_WHEEL"
+      echo "wheel-path=$GDAL_WHEEL" >> ${env:GITHUB_OUTPUT}
       echo "'artifact-info.outputs.wheel-path' set to $GDAL_WHEEL"
 
   - name: Update ${{ steps.artifact-info.outputs.wheel-path }} with GDAL DLLs
@@ -259,11 +259,11 @@ runs:
         echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> ${env:GITHUB_ENV}
         echo "LD_LIBRARY_PATH set to $LD_LIBRARY_PATH"
       }
-      echo "::set-output name=osgeo-path::$OSGEO_DIR"
+      echo "osgeo-path=$OSGEO_DIR" >> ${env:GITHUB_OUTPUT}
       echo "'install-wheel.outputs.osgeo-path' set to $OSGEO_DIR"
 
       $OSGEO_DIR = python -c "from importlib import util; osgeo=util.find_spec('osgeo_utils'); print(osgeo.submodule_search_locations[0])"
-      echo "::set-output name=utils-path::$OSGEO_DIR"
+      echo "utils-path=$OSGEO_DIR" >> ${env:GITHUB_OUTPUT}
       echo "'install-wheel.outputs.utils-path' set to $OSGEO_DIR"
 
       $GDAL_DRIVER_PATH = Join-Path $OSGEO_DIR "plugins"
