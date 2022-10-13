@@ -48,6 +48,23 @@ jobs:
         gdal-version: ${{ github.event.inputs.gdal-version }}
         rebuild-cache: ${{ github.event.inputs.rebuild-cache }}
 
+    # Keep the wheel as an artifact even in case of failure, to allow investigation
+    - name: Select artifact name
+      if: ${{ always() && steps.setup-gdal.outputs.wheel-path != '' }}
+      shell: pwsh
+      run: |
+        $WHEEL_NAME = (Get-Item "${{ steps.setup-gdal.outputs.wheel-path }}").BaseName
+        echo "WHEEL_NAME=$WHEEL_NAME" >> ${env:GITHUB_ENV}
+        echo "WHEEL_NAME set to $WHEEL_NAME"
+
+    - name: "Upload artifact: ${{ env.WHEEL_NAME }}"
+      if: ${{ always() && env.WHEEL_NAME != '' }}
+      uses: actions/upload-artifact@v3
+      with:
+        name: "${{ env.WHEEL_NAME }}"
+        path: |
+          ${{ steps.setup-gdal.outputs.wheel-path }}
+
     - name: Examine result
       shell: pwsh
       run: |
@@ -59,14 +76,3 @@ jobs:
         echo "Wheel package ${{ steps.setup-gdal.outputs.wheel-path }}"
         echo "OSGeo path ${{ steps.setup-gdal.outputs.osgeo-path }}"
         echo "OSGeo utils path ${{ steps.setup-gdal.outputs.utils-path }}"
-
-        $GDAL_WHEEL = Get-Item "${{ steps.setup-gdal.outputs.wheel-path }}"
-        echo "WHEEL_NAME=$($GDAL_WHEEL.BaseName)" >> ${env:GITHUB_ENV}
-        echo "WHEEL_NAME set to $($GDAL_WHEEL.BaseName)"
-
-    - name: "Upload artifact: ${{ env.WHEEL_NAME }}"
-      uses: actions/upload-artifact@v3
-      with:
-        name: "${{ env.WHEEL_NAME }}"
-        path: |
-          ${{ steps.setup-gdal.outputs.wheel-path }}

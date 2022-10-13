@@ -16,6 +16,11 @@ inputs:
     default: "v3.5.0"
     required: false
     type: string
+  cache-key-prefix:
+    description: "Extra cache key prefix, as a workaround for incompatible OS versions"
+    default: ""
+    required: false
+    type: string
   # The variables below are to replace lack of "runs.env" section in composite actions
   GIS_SDK_URL:
     description: "GIS SDK release package from https://www.gisinternals.com/sdk.php"
@@ -46,7 +51,7 @@ runs:
     shell: pwsh
     run: |
       $VER = python -c "import sys; print('{0.major}.{0.minor}'.format(sys.version_info))"
-      $KEY = "${{ runner.os }}-py${VER}-GDAL${{ inputs.gdal-version }}"
+      $KEY = "${{ inputs.cache-key-prefix }}${{ runner.os }}-py${VER}-GDAL${{ inputs.gdal-version }}"
       echo "cache-key=$KEY" >> ${env:GITHUB_OUTPUT}
       echo "'info.outputs.cache-key' set to $KEY"
 
@@ -258,6 +263,10 @@ runs:
         $LD_LIBRARY_PATH="${OSGEO_DIR}:${{ env.LD_LIBRARY_PATH}}"
         echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> ${env:GITHUB_ENV}
         echo "LD_LIBRARY_PATH set to $LD_LIBRARY_PATH"
+      }
+      if ("${{ runner.os }}" -eq "macOS") {
+        echo "DYLD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> ${env:GITHUB_ENV}
+        echo "DYLD_LIBRARY_PATH set to $LD_LIBRARY_PATH"
       }
       echo "osgeo-path=$OSGEO_DIR" >> ${env:GITHUB_OUTPUT}
       echo "'install-wheel.outputs.osgeo-path' set to $OSGEO_DIR"
