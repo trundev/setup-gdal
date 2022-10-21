@@ -108,15 +108,22 @@ runs:
     shell: pwsh
     run: |
       # See: https://github.com/OSGeo/gdal/blob/1d1b02a/.github/workflows/cmake_builds.yml#L54-L63
-      sudo apt-get install -y -q `
-          postgresql-*-postgis-3 postgresql-client-* postgresql-*-postgis-3-scripts `
-          libfreexl-dev libxml2-dev libspatialite-dev libgeos-dev libproj-dev libjpeg-dev libgif-dev `
-          poppler-utils libpoppler-dev libpoppler-private-dev unixodbc-dev libheif-dev `
-          ccache swig
+      if ('${{ steps.wheel-cache.outputs.cache-hit }}' -ne 'true') {
+        # Complete set of packages, mandatory if building wheel
+        sudo apt-get install -y -q `
+            postgresql-*-postgis-3 postgresql-client-* postgresql-*-postgis-3-scripts `
+            libfreexl-dev libxml2-dev libspatialite-dev libgeos-dev libproj-dev libjpeg-dev libgif-dev `
+            poppler-utils libpoppler-dev libpoppler-private-dev unixodbc-dev libheif-dev `
+            ccache swig
 
-      $CMAKE_OPTIONS = ""
-      echo "cmake-options=$CMAKE_OPTIONS" >> ${env:GITHUB_OUTPUT}
-      echo "'install-linux.outputs.cmake-options' set to $CMAKE_OPTIONS"
+        $CMAKE_OPTIONS = ""
+        echo "cmake-options=$CMAKE_OPTIONS" >> ${env:GITHUB_OUTPUT}
+        echo "'install-linux.outputs.cmake-options' set to $CMAKE_OPTIONS"
+      } else {
+        # Minimal set of packages
+        sudo apt-get install -y -q ~nlibproj[0-9]+ ~nlibspatialite[0-9]+ ~nlibheif[0-9]+ ~nlibpoppler[0-9]+
+        sudo apt-get install -y -q unixodbc ~nlibgif[0-9]+ ~nlibpq[0-9]+
+      }
 
   - name: Install prerequisites (macOS)
     if: ${{ runner.os == 'macOS' }}
