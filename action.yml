@@ -149,6 +149,11 @@ runs:
       # gdal is automatically installed as a dependency for postgis
       brew uninstall --ignore-dependencies gdal
 
+      #HACK: Build GDAL<3.6 under macOS-11, avoid:
+      # "error: functions that differ only in their return type cannot be overloaded"
+      # See https://github.com/apache/arrow/blob/9af43f1/cpp/src/arrow/util/aligned_storage.h#L39
+      brew uninstall --ignore-dependencies apache-arrow
+
   - name: Build GDAL and wheel (CMake)
     if: ${{ steps.download-sdk.outputs.sdk-dir == '' && steps.wheel-cache.outputs.cache-hit != 'true' }}
     id: build-gdal
@@ -160,22 +165,25 @@ runs:
       $BUILD_DIR = New-Item -EA SilentlyContinue -ItemType directory ${{ inputs.base-dir }}/build
       $INSTALL_DIR = New-Item -EA SilentlyContinue -ItemType directory ${{ inputs.base-dir }}/install-gdal
 
-      echo "# cmake configure, options:"
       $CMAKE_OPTIONS = "${{ inputs.CMAKE_OPTIONS }}"
       $CMAKE_OPTIONS += " ${{ steps.install-linux.outputs.cmake-options }} ${{ steps.install-macos.outputs.cmake-options }}"
-      echo $CMAKE_OPTIONS
+      echo "::group::cmake configure: $CMAKE_OPTIONS"
       cmake $CMAKE_OPTIONS.Split() -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -S ${{ inputs.base-dir }}/gdal -B "$BUILD_DIR"
+      echo "::endgroup::"
       if ($LASTEXITCODE) {exit $LASTEXITCODE}
 
-      echo "# cmake build and install"
-      cmake --build "$BUILD_DIR" --target install
+      echo "::group::cmake build and install"
+      cmake --build "$BUILD_DIR" --config Release --target install
+      echo "::endgroup::"
       if ($LASTEXITCODE) {exit $LASTEXITCODE}
 
       echo "install-dir=$INSTALL_DIR" >> ${env:GITHUB_OUTPUT}
       echo "'build-gdal.outputs.install-dir' set to $INSTALL_DIR"
 
       cd "$BUILD_DIR/swig/python"
+      echo "::group::build wheel"
       python setup.py bdist_wheel --dist-dir "$BUILD_DIR/.."
+      echo "::endgroup::"
 
   - name: Create GDAL wheel (from SDK)
     if: ${{ steps.download-sdk.outputs.sdk-dir != '' && steps.wheel-cache.outputs.cache-hit != 'true' }}
@@ -218,38 +226,39 @@ runs:
 
       $UNPACK_DIR = Get-ChildItem -Directory "GDAL-*"
       $OSGEO_DIR = Join-Path $UNPACK_DIR "osgeo"
+      $OSGEO_UTILS_DIR += $OSGEO_DIR + "_utils"
+      New-Item -ItemType directory $OSGEO_UTILS_DIR/apps,$OSGEO_UTILS_DIR/plugins,$OSGEO_UTILS_DIR\plugins-optional `
+          -EA SilentlyContinue | Out-Null
+
       if ("${{ steps.download-sdk.outputs.sdk-dir }}") {
+        # Binaries from GIS SDK
         $GDAL_BIN = Get-Item "${{ steps.download-sdk.outputs.sdk-dir }}/bin"
 
         echo "Copy all GDAL DLLs to $OSGEO_DIR (avoid USE_PATH_FOR_GDAL_PYTHON)"
         Copy-Item "$GDAL_BIN/*.dll" "$OSGEO_DIR"
 
-        $OSGEO_DIR += "_utils"
-        echo "Copy all GDAL-driver DLLs to $OSGEO_DIR\plugins"
-        Copy-Item -Recurse "$GDAL_BIN/gdal/plugins" "$OSGEO_DIR\plugins"
+        echo "Copy all GDAL-driver DLLs to $OSGEO_UTILS_DIR\plugins"
+        Copy-Item "$GDAL_BIN/gdal/plugins/*" "$OSGEO_UTILS_DIR\plugins"
 
         # Confusing ERROR messages workaround:
         # Move plugin DLLs that can't be loaded to "plugins-optional"
-        New-Item -EA SilentlyContinue -ItemType directory $OSGEO_DIR\plugins-optional
-        Move-Item -EA SilentlyContinue $OSGEO_DIR\plugins\gdal_GEOR.dll,$OSGEO_DIR\plugins\ogr_OCI.dll $OSGEO_DIR\plugins-optional
+        Move-Item $OSGEO_UTILS_DIR\plugins\gdal_GEOR.dll,$OSGEO_UTILS_DIR\plugins\ogr_OCI.dll `
+            $OSGEO_UTILS_DIR\plugins-optional -EA SilentlyContinue
 
-        echo "Copy all PROJ7 files to $OSGEO_DIR\proj7"
-        Copy-Item -Recurse "$GDAL_BIN/proj7/share" "$OSGEO_DIR\proj7"
+        echo "Copy all PROJ7 files to $OSGEO_UTILS_DIR\proj"
+        Copy-Item -Recurse "$GDAL_BIN/proj7/share" "$OSGEO_UTILS_DIR\proj"
 
-        echo "Copy all GDAL programs to $OSGEO_DIR\apps"
-        Copy-Item -Recurse "$GDAL_BIN/gdal/apps" "$OSGEO_DIR\apps"
+        echo "Copy all GDAL programs to $OSGEO_UTILS_DIR\apps"
+        Copy-Item "$GDAL_BIN/gdal/apps/*" "$OSGEO_UTILS_DIR\apps"
       } elseif ("${{ steps.build-gdal.outputs.install-dir }}") {
+        # Binaries from the cmake build
         $GDAL_LIB = Get-Item "${{ steps.build-gdal.outputs.install-dir }}/lib"
-
         echo "Copy all GDAL .so/.dylib to $OSGEO_DIR"
-        Copy-Item @("$GDAL_LIB/*.so*"; "$GDAL_LIB/*.dylib") "$OSGEO_DIR"
+        Copy-Item "$GDAL_LIB/*.so*","$GDAL_LIB/*.dylib" "$OSGEO_DIR"
 
-        $OSGEO_DIR += "_utils"
         $GDAL_BIN = Get-Item "${{ steps.build-gdal.outputs.install-dir }}/bin"
-        New-Item -EA SilentlyContinue -ItemType directory @("$OSGEO_DIR/apps"; "$OSGEO_DIR/plugins")
-
-        echo "Copy all GDAL programs to $OSGEO_DIR/apps"
-        Copy-Item -Exclude *.py "$GDAL_BIN/*" "$OSGEO_DIR/apps"
+        echo "Copy all GDAL programs to $OSGEO_UTILS_DIR/apps"
+        Copy-Item -Exclude *.py,*.dll "$GDAL_BIN/*" "$OSGEO_UTILS_DIR/apps"
       }
 
       $GDAL_WHEEL = Get-Item "${{ steps.artifact-info.outputs.wheel-path }}"
@@ -288,7 +297,7 @@ runs:
         echo "GDAL_DRIVER_PATH set to $GDAL_DRIVER_PATH"
       }
 
-      $PROJ_LIB = Join-Path $OSGEO_DIR "proj7"
+      $PROJ_LIB = Join-Path $OSGEO_DIR "proj"
       if (Test-Path $PROJ_LIB) {
         echo "PROJ_LIB=$PROJ_LIB" >> ${env:GITHUB_ENV}
         echo "PROJ_LIB set to $PROJ_LIB"

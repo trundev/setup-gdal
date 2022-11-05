@@ -10,11 +10,11 @@ jobs:
     strategy:
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
-        python-version: ['3.10', '3.6']
-        gdal-version: ['v3.5.2']
+        python-version: ['3.10', '3.7']
+        gdal-version: ['v3.5.3']
         exclude:
           - os: macos-latest    # Simplify tests under macOS
-            python-version: '3.6'
+            python-version: '3.7'
       fail-fast: false
 
     runs-on: ${{ matrix.os }}
@@ -32,6 +32,8 @@ jobs:
       with:
         gdal-version: "${{ matrix.gdal-version }}"
         rebuild-cache: true
+        #HACK: Build GDAL<3.6 under ubuntu-22.04 (GNU 11.3.0), see https://github.com/OSGeo/gdal/pull/6600
+        CMAKE_OPTIONS: "-DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS=-U_FORTIFY_SOURCE"
 
     - name: Check the package
       shell: pwsh
@@ -45,10 +47,10 @@ jobs:
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
         python-version: ['3.10']
-        gdal-version: ['v3.5.2']
+        gdal-version: ['v3.5.3']
         exclude:
           - os: macos-latest      # Simplify tests under macOS
-            python-version: '3.6'
+            python-version: '3.7'
       fail-fast: false
 
     runs-on: ${{ matrix.os }}
@@ -80,7 +82,8 @@ jobs:
 
         # Additional modules (gdal_array requires numpy)
         python -m pip install numpy
-        python -c "from osgeo import gdalconst, gdal_array, gnm, ogr, osr"
+        python -c ("from osgeo import gdalconst, gdal_array, gnm, ogr, osr;" +
+            "print(gdalconst.__name__, gdal_array.__name__, gnm.__name__, ogr.__name__, osr.__name__)")
 
     - name: Check utilities
       shell: pwsh
