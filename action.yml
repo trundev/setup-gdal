@@ -184,29 +184,38 @@ runs:
     shell: pwsh
     run: |
       # Prerequisites: numpy is needed to build gdal_array
-      python -m pip install -U pip setuptools wheel numpy
+      #REMOVEME: Windows/msys2 experiment only...
+      msys2 -c "python -m pip install -U pip setuptools wheel numpy"
 
       $BUILD_DIR = New-Item -EA SilentlyContinue -ItemType directory ${{ inputs.base-dir }}/build
       $INSTALL_DIR = New-Item -EA SilentlyContinue -ItemType directory ${{ inputs.base-dir }}/install-gdal
 
-      echo "# cmake configure, options:"
+      echo "::group::cmake configure"
       $CMAKE_OPTIONS = "${{ inputs.CMAKE_OPTIONS }} ${{ steps.install-windows.outputs.cmake-options }}"
       $CMAKE_OPTIONS += " ${{ steps.install-linux.outputs.cmake-options }} ${{ steps.install-macos.outputs.cmake-options }}"
-      echo $CMAKE_OPTIONS
+      echo "Options: $CMAKE_OPTIONS"
       #REMOVEME: Windows/msys2 experiment only...
       msys2 -c "cmake $CMAKE_OPTIONS -DCMAKE_INSTALL_PREFIX='$INSTALL_DIR' -S ${{ inputs.base-dir }}/gdal -B '$BUILD_DIR'"
+      echo "::endgroup::"
       if ($LASTEXITCODE) {exit $LASTEXITCODE}
 
-      echo "# cmake build and install"
+      echo "::group::cmake build and install"
       #REMOVEME: Windows/msys2 experiment only...
       msys2 -c "cmake --build '$BUILD_DIR' --target install"
+      echo "::endgroup::"
       if ($LASTEXITCODE) {exit $LASTEXITCODE}
 
       echo "install-dir=$INSTALL_DIR" >> ${env:GITHUB_OUTPUT}
       echo "'build-gdal.outputs.install-dir' set to $INSTALL_DIR"
+      ###REMOVEME:...
+      dir -Recurse -Depth 3 $INSTALL_DIR
+      ####
 
+      echo "::group::create wheel"
       cd "$BUILD_DIR/swig/python"
-      python setup.py bdist_wheel --dist-dir "$BUILD_DIR/.."
+      #REMOVEME: Windows/msys2 experiment only...
+      msys2 -c "python setup.py bdist_wheel --dist-dir '$BUILD_DIR/..'"
+      echo "::endgroup::"
 
   - name: Create GDAL wheel (from SDK)
     if: ${{ steps.download-sdk.outputs.sdk-dir != '' && steps.wheel-cache.outputs.cache-hit != 'true' }}
