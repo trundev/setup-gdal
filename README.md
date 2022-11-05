@@ -125,7 +125,7 @@ dependencies. This step also adds (for convenience only):
 
 - [GDAL programs](https://gdal.org/programs/) under `osgeo_utils/apps`
 - The extra GDAL plugins under `osgeo_utils/plugins` (env-var `GDAL_DRIVER_PATH`)
-- The [proj-data](https://proj.org/) package under `osgeo_utils/proj7` (env-var `PROJ_LIB`)
+- The [proj-data](https://proj.org/) package under `osgeo_utils/proj` (env-var `PROJ_LIB`)
 
 
 ### Example: GDAL inlined in workflow file
