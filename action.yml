@@ -21,6 +21,11 @@ inputs:
     default: ""
     required: false
     type: string
+  use-conda:
+    description: "Use conda packages, otherwise: Windows - development kit from www.gisinternals.com, others - apt/brew packages"
+    default: false
+    required: false
+    type: boolean
   # The variables below are to replace lack of "runs.env" section in composite actions
   GIS_SDK_URL:
     description: "GIS SDK release package from https://www.gisinternals.com/sdk.php"
@@ -52,6 +57,7 @@ runs:
     run: |
       $VER = python -c "import sys; print('{0.major}.{0.minor}'.format(sys.version_info))"
       $KEY = "${{ inputs.cache-key-prefix }}${{ runner.os }}-py${VER}-GDAL${{ inputs.gdal-version }}"
+      if ('${{ inputs.use-conda }}' -eq 'true') {$KEY += "-conda"}
       echo "cache-key=$KEY" >> ${env:GITHUB_OUTPUT}
       echo "'info.outputs.cache-key' set to $KEY"
 
@@ -84,8 +90,8 @@ runs:
       ref: ${{ inputs.gdal-version }}
       path: ${{ inputs.base-dir }}/gdal
 
-  - name: Download GIS SDK release
-    if: ${{ runner.os == 'Windows' && steps.wheel-cache.outputs.cache-hit != 'true' }}
+  - name: Download GIS SDK release (Windows)
+    if: ${{ inputs.use-conda != 'true' && runner.os == 'Windows' && steps.wheel-cache.outputs.cache-hit != 'true' }}
     id: download-sdk
     shell: pwsh
     run: |
@@ -102,8 +108,36 @@ runs:
       echo "sdk-dir=$SDK_BASE" >> ${env:GITHUB_OUTPUT}
       echo "'download-sdk.outputs.sdk-dir' set to $SDK_BASE"
 
+  - name: Setup conda
+    if: ${{ inputs.use-conda == 'true' && steps.wheel-cache.outputs.cache-hit != 'true' }}
+    id: setup-conda
+    uses: conda-incubator/setup-miniconda@v2
+    with:
+      activate-environment: gdalenv
+      channels: conda-forge
+
+  - name: Install prerequisites (conda)
+    if: ${{ steps.setup-conda.outcome == 'success' }}
+    id: install-conda
+    shell: pwsh
+    run: |
+      # See: https://github.com/OSGeo/gdal/blob/1d1b02a/.github/workflows/cmake_builds.yml#L416-L422
+      echo "::group::Install conda packages"
+      conda install --yes swig proj postgresql
+      conda install --yes geos expat geotiff libpng qhull
+      echo "::endgroup::"
+      if ($LASTEXITCODE) {exit $LASTEXITCODE}
+
+      $CMAKE_OPTIONS = '-DCMAKE_FIND_ROOT_PATH:FILEPATH="{0}"' -f $env:CONDA_PREFIX
+      if ("${{ runner.os }}" -eq "Windows") {
+        echo "HACK: Disable preinstalled MYSQL due to ZLIB incompatibility"
+        $CMAKE_OPTIONS += " -DGDAL_USE_MYSQL:BOOL=OFF"
+      }
+      echo "cmake-options=$CMAKE_OPTIONS" >> ${env:GITHUB_OUTPUT}
+      echo "'install-conda.outputs.cmake-options' set to $CMAKE_OPTIONS"
+
   - name: Install prerequisites (Linux)
-    if: ${{ runner.os == 'Linux' }}
+    if: ${{ inputs.use-conda != 'true' && runner.os == 'Linux' }}
     id: install-linux
     shell: pwsh
     run: |
@@ -126,7 +160,7 @@ runs:
       }
 
   - name: Install prerequisites (macOS)
-    if: ${{ runner.os == 'macOS' }}
+    if: ${{ inputs.use-conda != 'true' && runner.os == 'macOS' }}
     id: install-macos
     shell: pwsh
     run: |
@@ -163,8 +197,8 @@ runs:
       $BUILD_DIR = New-Item -EA SilentlyContinue -ItemType directory ${{ inputs.base-dir }}/build
       $INSTALL_DIR = New-Item -EA SilentlyContinue -ItemType directory ${{ inputs.base-dir }}/install-gdal
 
-      $CMAKE_OPTIONS = "${{ inputs.CMAKE_OPTIONS }}"
-      $CMAKE_OPTIONS += " ${{ steps.install-linux.outputs.cmake-options }} ${{ steps.install-macos.outputs.cmake-options }}"
+      $CMAKE_OPTIONS = '${{ inputs.CMAKE_OPTIONS }} ${{ steps.install-conda.outputs.cmake-options }}'
+      $CMAKE_OPTIONS += ' ${{ steps.install-linux.outputs.cmake-options }} ${{ steps.install-macos.outputs.cmake-options }}'
       echo "::group::cmake configure: $CMAKE_OPTIONS"
       cmake $CMAKE_OPTIONS.Split() -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -S ${{ inputs.base-dir }}/gdal -B "$BUILD_DIR"
       echo "::endgroup::"
@@ -255,13 +289,35 @@ runs:
         Copy-Item "$GDAL_BIN/gdal/apps/*" "$OSGEO_UTILS_DIR\apps"
       } elseif ("${{ steps.build-gdal.outputs.install-dir }}") {
         # Binaries from the cmake build
-        $GDAL_LIB = Get-Item "${{ steps.build-gdal.outputs.install-dir }}/lib"
-        echo "Copy all GDAL .so/.dylib to $OSGEO_DIR"
-        Copy-Item "$GDAL_LIB/*.so*","$GDAL_LIB/*.dylib" "$OSGEO_DIR"
-
         $GDAL_BIN = Get-Item "${{ steps.build-gdal.outputs.install-dir }}/bin"
+        if ("${{ runner.os }}" -eq "Windows") {
+          # Windows build (conda)
+          echo "Copy GDAL DLL to $OSGEO_DIR (avoid USE_PATH_FOR_GDAL_PYTHON)"
+          Copy-Item "$GDAL_BIN/*.dll" "$OSGEO_DIR"
+          if ($env:CONDA_PREFIX) {
+            echo "Copy all package DLLs to $OSGEO_DIR, except vc/vs2015_runtime"
+            Copy-Item "$env:CONDA_PREFIX/Library/bin/*.dll" "$OSGEO_DIR" `
+                -Exclude api-ms-win-*.dll,msvcp*.dll,vc*.dll
+          }
+        } else {
+          # Linux or macOS build
+          $GDAL_LIB = Get-Item "${{ steps.build-gdal.outputs.install-dir }}/lib"
+          echo "Copy all GDAL .so/.dylib to $OSGEO_DIR"
+          Copy-Item "$GDAL_LIB/*.so*","$GDAL_LIB/*.dylib" "$OSGEO_DIR"
+          if ($env:CONDA_PREFIX) {
+            echo "Copy all package .so/.dylib to $OSGEO_DIR"
+            Copy-Item "$env:CONDA_PREFIX/lib/lib*.so*","$env:CONDA_PREFIX/lib/lib*.dylib" "$OSGEO_DIR"
+          }
+        }
+
         echo "Copy all GDAL programs to $OSGEO_UTILS_DIR/apps"
         Copy-Item -Exclude *.py,*.dll "$GDAL_BIN/*" "$OSGEO_UTILS_DIR/apps"
+
+        if ($env:CONDA_PREFIX) {
+          echo "Copy all PROJ files to $OSGEO_UTILS_DIR\proj"
+          Copy-Item "$env:CONDA_PREFIX/Library/share/proj","$env:CONDA_PREFIX/share/proj" "$OSGEO_UTILS_DIR/proj" `
+              -Recurse -EA SilentlyContinue
+        }
       }
 
       $GDAL_WHEEL = Get-Item "${{ steps.artifact-info.outputs.wheel-path }}"

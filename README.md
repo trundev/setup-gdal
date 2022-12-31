@@ -37,6 +37,7 @@ All the input parameters are optional
 - `base-dir` - The base directory under `$GITHUB_WORKSPACE` to perform the build
 - `cache-key-prefix` - Extra string to be added to the cache-key. To be used as a workaround, if the cache is
   incompatible between different versions of the same OS (like `macOS-11` and `macOS-12`).
+- `use-conda` - Use conda, instead of GISInternals/system packages
 
 **Default inputs example**
 ```yaml
@@ -47,6 +48,7 @@ steps:
     rebuild-cache: 'false'
     base-dir: 'GDAL~'
     cache-key-prefix: ''
+    use-conda: 'false'
 ```
 
 ## Outputs
@@ -101,25 +103,35 @@ from the [build-wheel.yml](.github/workflows/build-wheel.yml) workflow, see
 [Build GDAL python wheel](https://github.com/trundev/setup-gdal/actions/workflows/build-wheel.yml).
 
 
-### Setup under Windows
+### Setup using conda packages
 
-The setup process under Windows uses the prebuild development kit from https://www.gisinternals.com/. With
-the help of this SDK, just `pip whell gdal` is enough to create wheel including the `.pyd` extensions. The
-rest of GDAL related DLLs are added later.
+> Activated by `use-conda: 'true'`
 
-This process is much faster, than the full-build approach, but lacks GDAL version / runner OS flexibility.
+The setup process uses [setup-miniconda](https://github.com//conda-incubator/setup-miniconda)
+action to install conda and some minimal set of the required external packages. Then, performs
+a full `cmake` build of the sources from [GDAL](https://github.com/OSGeo/gdal) repository, the commit
+is selected by `gdal-version`.
+Finally, a wheel is build from the generated result via standard `setup.py bdist_wheel` procedure.
 
+### Setup using GISInternals/system packages
 
-### Setup under Linux and MacOS
+> Activated by `use-conda: 'false'`
 
-The setup process under both Linux and MacOS performs a full `cmake` build of the sources from
-[GDAL](https://github.com/OSGeo/gdal) repository. Then a wheel is build from the generated result via standard
-`setup.py bdist_wheel` procedure.
+Preparation differs for Windows vs. Linux and MacOS runner OS:
 
+- Windows: the prebuild development kit from https://www.gisinternals.com/ is used.
+  With the help of this SDK, just `pip wheel gdal` is enough to create wheel including the `.pyd` extensions.
+  The rest of GDAL related DLLs are added later.
+
+  This process is much faster, than the full-build approach, but lacks GDAL version / runner OS
+  flexibility.
+
+- Linux / MacOS: The required external packages are installed via `apt-get` or `brew`, then continue
+  just like "Setup using conda packages"
 
 ### Wheel update (repack)
 
-After the wheel is created, by `pip whell gdal` or `setup.py bdist_wheel`, it still does not include the
+After the wheel is created, by `pip wheel gdal` or `setup.py bdist_wheel`, it still does not include the
 dependent GDAL `.dll`-s, `.so`-s or `.dylib`-s. This is fixed by repacking the wheel, by adding these
 dependencies. This step also adds (for convenience only):
 

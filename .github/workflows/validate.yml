@@ -12,10 +12,12 @@ jobs:
         os: [windows-latest, ubuntu-latest]
         python-version: ['3.11', '3.7']
         gdal-version: ['v3.6.3']
+        use-conda: [true, false]
         include:
           - os: macos-latest    # Simplify tests under macOS
             python-version: '3.10'
             gdal-version: 'v3.6.3'
+            use-conda: false
       fail-fast: false
 
     runs-on: ${{ matrix.os }}
@@ -33,6 +35,7 @@ jobs:
       with:
         gdal-version: "${{ matrix.gdal-version }}"
         rebuild-cache: true
+        use-conda: ${{ matrix.use-conda }}
 
     - name: Check the package
       shell: pwsh
@@ -47,11 +50,13 @@ jobs:
         os: [windows-latest, ubuntu-latest]
         python-version: ['3.11']
         gdal-version: ['v3.6.3']
+        use-conda: [true, false]
         timeout: [5]
         include:
           - os: macos-latest      # Simplify tests under macOS
             python-version: '3.10'
             gdal-version: 'v3.6.3'
+            use-conda: false
             timeout: 15           # brew install is quite slow
       fail-fast: false
 
@@ -69,6 +74,7 @@ jobs:
       id: setup-gdal
       with:
         gdal-version: "${{ matrix.gdal-version }}"
+        use-conda: ${{ matrix.use-conda }}
 
     - name: Check the package
       shell: pwsh

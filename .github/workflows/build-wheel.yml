@@ -28,6 +28,14 @@ on:
         options:
         - false
         - true
+      use-conda:
+        description: "Use conda packages, otherwise: Windows - development kit from www.gisinternals.com, others - apt/brew packages"
+        required: false
+        default: "true"
+        type: choice
+        options:
+        - true
+        - false
 
 jobs:
   build:
@@ -47,6 +55,7 @@ jobs:
       with:
         gdal-version: ${{ github.event.inputs.gdal-version }}
         rebuild-cache: ${{ github.event.inputs.rebuild-cache }}
+        use-conda: ${{ github.event.inputs.use-conda }}
 
     # Keep the wheel as an artifact even in case of failure, to allow investigation
     - name: Select artifact name
@@ -54,6 +63,7 @@ jobs:
       shell: pwsh
       run: |
         $WHEEL_NAME = (Get-Item "${{ steps.setup-gdal.outputs.wheel-path }}").BaseName
+        if ('${{ github.event.inputs.use-conda }}' -eq 'true') {$WHEEL_NAME += "-conda"}
         echo "WHEEL_NAME=$WHEEL_NAME" >> ${env:GITHUB_ENV}
         echo "WHEEL_NAME set to $WHEEL_NAME"
 
