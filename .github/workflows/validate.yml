@@ -9,12 +9,15 @@ jobs:
   rebuid-cache:
     strategy:
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
-        python-version: ['3.10', '3.7']
-        gdal-version: ['v3.5.3']
-        exclude:
+        os: [windows-latest, ubuntu-latest]
+        python-version: ['3.11', '3.7']
+        gdal-version: ['v3.6.2']
+        use-conda: ['true']
+        include:
           - os: macos-latest    # Simplify tests under macOS
-            python-version: '3.7'
+            python-version: '3.10'
+            gdal-version: 'v3.6.2'
+            use-conda: 'false'  # HACK: The macOS conda build fails to load (@rpath issue)
       fail-fast: false
 
     runs-on: ${{ matrix.os }}
@@ -32,8 +35,7 @@ jobs:
       with:
         gdal-version: "${{ matrix.gdal-version }}"
         rebuild-cache: true
-        #HACK: Build GDAL<3.6 under ubuntu-22.04 (GNU 11.3.0), see https://github.com/OSGeo/gdal/pull/6600
-        CMAKE_OPTIONS: "-DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS=-U_FORTIFY_SOURCE"
+        use-conda: "${{ matrix.use-conda }}"
 
     - name: Check the package
       shell: pwsh
@@ -45,12 +47,15 @@ jobs:
     timeout-minutes: 10   # The cache makes it much faster, but not under macOS
     strategy:
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
-        python-version: ['3.10']
-        gdal-version: ['v3.5.3']
-        exclude:
+        os: [windows-latest, ubuntu-latest]
+        python-version: ['3.11']
+        gdal-version: ['v3.6.2']
+        use-conda: ['true']
+        include:
           - os: macos-latest      # Simplify tests under macOS
-            python-version: '3.7'
+            python-version: '3.10'
+            gdal-version: 'v3.6.2'
+            use-conda: 'false'
       fail-fast: false
 
     runs-on: ${{ matrix.os }}
@@ -61,6 +66,7 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: "${{ matrix.python-version }}"
+        use-conda: "${{ matrix.use-conda }}"
 
     - name: Set up GDAL ${{ matrix.gdal-version }}
       uses: ./.

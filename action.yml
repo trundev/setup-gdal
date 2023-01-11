@@ -13,7 +13,7 @@ inputs:
     type: boolean
   gdal-version:
     description: "Version of GDAL to setup (OSGeo/gdal repository reference)"
-    default: "v3.5.0"
+    default: "v3.6.2"
     required: false
     type: string
   cache-key-prefix:
@@ -187,11 +187,6 @@ runs:
       brew install postgis ${{ inputs.extra-packages }}
       # gdal is automatically installed as a dependency for postgis
       brew uninstall --ignore-dependencies gdal
-
-      #HACK: Build GDAL<3.6 under macOS-11, avoid:
-      # "error: functions that differ only in their return type cannot be overloaded"
-      # See https://github.com/apache/arrow/blob/9af43f1/cpp/src/arrow/util/aligned_storage.h#L39
-      brew uninstall --ignore-dependencies apache-arrow
 
   - name: Build GDAL and wheel (CMake)
     if: ${{ steps.download-sdk.outputs.sdk-dir == '' && steps.wheel-cache.outputs.cache-hit != 'true' }}
