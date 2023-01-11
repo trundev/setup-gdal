@@ -26,6 +26,11 @@ inputs:
     default: false
     required: false
     type: boolean
+  extra-packages:
+    description: "Install extra packages (conda, apt or brew)"
+    default: ""
+    required: false
+    type: string
   # The variables below are to replace lack of "runs.env" section in composite actions
   GIS_SDK_URL:
     description: "GIS SDK release package from https://www.gisinternals.com/sdk.php"
@@ -124,7 +129,7 @@ runs:
       # See: https://github.com/OSGeo/gdal/blob/1d1b02a/.github/workflows/cmake_builds.yml#L416-L422
       echo "::group::Install conda packages"
       conda install --yes swig proj postgresql
-      conda install --yes geos expat geotiff libpng qhull
+      conda install --yes geos expat geotiff libpng qhull ${{ inputs.extra-packages }}
       echo "::endgroup::"
       if ($LASTEXITCODE) {exit $LASTEXITCODE}
 
@@ -149,14 +154,14 @@ runs:
             postgresql-*-postgis-3 postgresql-client-* postgresql-*-postgis-3-scripts `
             libfreexl-dev libxml2-dev libspatialite-dev libgeos-dev libproj-dev libjpeg-dev libgif-dev `
             poppler-utils libpoppler-dev libpoppler-private-dev unixodbc-dev libheif-dev `
-            swig
+            swig ${{ inputs.extra-packages }}
 
         $CMAKE_OPTIONS = ""
         echo "cmake-options=$CMAKE_OPTIONS" >> ${env:GITHUB_OUTPUT}
         echo "'install-linux.outputs.cmake-options' set to $CMAKE_OPTIONS"
       } else {
         # Minimal set of packages
-        sudo apt-get install -y -q postgis
+        sudo apt-get install -y -q postgis ${{ inputs.extra-packages }}
       }
 
   - name: Install prerequisites (macOS)
@@ -182,7 +187,7 @@ runs:
       # cfitsio, popt, epsilon, expat, freexl, geos, libaec, hdf5, json-c, libxml2, libdap, proj, libgeotiff,
       # librttopo, minizip, libspatialite, netcdf, numpy, nspr, nss, poppler, xerces-c, gdal, protobuf, protobuf-c,
       # boost, eigen, cgal and sfcgal
-      brew install postgis
+      brew install postgis ${{ inputs.extra-packages }}
       # gdal is automatically installed as a dependency for postgis
       brew uninstall --ignore-dependencies gdal
 

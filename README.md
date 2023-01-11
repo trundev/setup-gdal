@@ -38,6 +38,7 @@ All the input parameters are optional
 - `cache-key-prefix` - Extra string to be added to the cache-key. To be used as a workaround, if the cache is
   incompatible between different versions of the same OS (like `macOS-11` and `macOS-12`).
 - `use-conda` - Use conda, instead of GISInternals/system packages
+- `extra-packages` - Install extra (optional) packages to be used by GDAL build process
 
 **Default inputs example**
 ```yaml
@@ -49,6 +50,7 @@ steps:
     base-dir: 'GDAL~'
     cache-key-prefix: ''
     use-conda: 'false'
+    extra-packages: ''
 ```
 
 ## Outputs
@@ -113,6 +115,9 @@ a full `cmake` build of the sources from [GDAL](https://github.com/OSGeo/gdal) r
 is selected by `gdal-version`.
 Finally, a wheel is build from the generated result via standard `setup.py bdist_wheel` procedure.
 
+The `extra-packages` input parameter can be used to install additional external packages, before the `cmake`
+build. This allows adding support for more geospatial data formats.
+
 ### Setup using GISInternals/system packages
 
 > Activated by `use-conda: 'false'`
@@ -127,7 +132,10 @@ Preparation differs for Windows vs. Linux and MacOS runner OS:
   flexibility.
 
 - Linux / MacOS: The required external packages are installed via `apt-get` or `brew`, then continue
-  just like "Setup using conda packages"
+  just like "Setup using conda packages".
+
+  The `extra-packages` input can be used, to install additional `apt-get` or `brew` packages, similar to
+  the conda build.
 
 ### Wheel update (repack)
 

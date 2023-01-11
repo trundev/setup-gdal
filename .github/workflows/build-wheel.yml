@@ -36,6 +36,10 @@ on:
         options:
         - true
         - false
+      extra-packages:
+        description: "Install extra packages (conda, apt or brew)"
+        default: ""
+        required: false
 
 jobs:
   build:
@@ -56,6 +60,7 @@ jobs:
         gdal-version: ${{ github.event.inputs.gdal-version }}
         rebuild-cache: ${{ github.event.inputs.rebuild-cache }}
         use-conda: ${{ github.event.inputs.use-conda }}
+        extra-packages: ${{ github.event.inputs.extra-packages }}
 
     # Keep the wheel as an artifact even in case of failure, to allow investigation
     - name: Select artifact name
