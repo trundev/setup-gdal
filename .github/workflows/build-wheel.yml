@@ -15,11 +15,11 @@ on:
       python-version:
         description: "Version of Python to use"
         required: true
-        default: "3.10"
+        default: "3.11"
       gdal-version:
         description: "Version of GDAL to build"
         required: true
-        default: "v3.5.2"
+        default: "v3.6.3"
       rebuild-cache:
         description: "Delete existing wheel cache and create a new one"
         required: false
