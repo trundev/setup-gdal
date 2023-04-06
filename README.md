@@ -17,7 +17,7 @@ steps:
 - uses: actions/setup-python@v4
 - uses: actions/setup-gdal@main
   with:
-    gdal-version: 'v3.5.2'
+    gdal-version: 'v3.6.3'
 - run: python -m osgeo_utils.samples.gdalinfo --formats
 - run: python -c "from osgeo import gdal; print(gdal.__name__)"
 ```
@@ -43,7 +43,7 @@ All the input parameters are optional
 steps:
 - uses: actions/setup-gdal@main
   with:
-    gdal-version: 'v3.5.2'
+    gdal-version: 'v3.6.3'
     rebuild-cache: 'false'
     base-dir: 'GDAL~'
     cache-key-prefix: ''
@@ -62,8 +62,8 @@ steps:
 ### Environment variables
 
 - `GDAL_DRIVER_PATH` - Path to GDAL `plugins`, if available
-- `PROJ_LIB` - Path to the [proj-data](https://proj.org/) package, if available
-- `PATH` - _[Windows only]_ The variable is updated with `osgeo-path` to allow loading of `gdal305.dll`
+- `PROJ_DATA` - Path to the [proj-data](https://proj.org/) package, if available
+- `PATH` - _[Windows only]_ The variable is updated with `osgeo-path` to allow loading of `gdal.dll`
 - `LD_LIBRARY_PATH` - _[Linux & Mac]_ The variable is updated with `osgeo-path` to allow loading of `libgdal.so`
 - `DYLD_LIBRARY_PATH` - _[Mac only]_ The variable is updated with `osgeo-path` to allow loading of `libgdal.dylib`
 
@@ -125,7 +125,7 @@ dependencies. This step also adds (for convenience only):
 
 - [GDAL programs](https://gdal.org/programs/) under `osgeo_utils/apps`
 - The extra GDAL plugins under `osgeo_utils/plugins` (env-var `GDAL_DRIVER_PATH`)
-- The [proj-data](https://proj.org/) package under `osgeo_utils/proj` (env-var `PROJ_LIB`)
+- The [proj-data](https://proj.org/) package under `osgeo_utils/proj` (env-var `PROJ_DATA`)
 
 
 ### Example: GDAL inlined in workflow file

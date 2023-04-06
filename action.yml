@@ -298,8 +298,20 @@ runs:
         echo "GDAL_DRIVER_PATH set to $GDAL_DRIVER_PATH"
       }
 
-      $PROJ_LIB = Join-Path $OSGEO_DIR "proj"
-      if (Test-Path $PROJ_LIB) {
-        echo "PROJ_LIB=$PROJ_LIB" >> ${env:GITHUB_ENV}
-        echo "PROJ_LIB set to $PROJ_LIB"
+  - name: Select PROJ_DATA (proj.org database)
+    if: env.PROJ_DATA == ''
+    shell: pwsh
+    run: |
+      echo 'Try to use PROJ_DATA from "pyproj"'
+      $PYPROJ_DIR = python -c "from importlib.util import *; mod=find_spec('pyproj'); print(mod.submodule_search_locations[0] if mod else '')"
+      if ($PYPROJ_DIR) {
+        $PROJ_DATA = Join-Path $PYPROJ_DIR "proj_dir/share/proj" -resolve -EA SilentlyContinue
+      }
+      if (! $PROJ_DATA) {
+        echo 'Try to use PROJ_DATA from "osgeo_utils"'
+        $PROJ_DATA = Join-Path "${{ steps.install-wheel.outputs.utils-path }}" "proj" -resolve -EA SilentlyContinue
+      }
+      if ($PROJ_DATA) {
+        echo "PROJ_DATA=$PROJ_DATA" >> ${env:GITHUB_ENV}
+        echo "PROJ_DATA set to $PROJ_DATA"
       }
