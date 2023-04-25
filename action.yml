@@ -115,15 +115,14 @@ runs:
             postgresql-*-postgis-3 postgresql-client-* postgresql-*-postgis-3-scripts `
             libfreexl-dev libxml2-dev libspatialite-dev libgeos-dev libproj-dev libjpeg-dev libgif-dev `
             poppler-utils libpoppler-dev libpoppler-private-dev unixodbc-dev libheif-dev `
-            ccache swig
+            swig
 
         $CMAKE_OPTIONS = ""
         echo "cmake-options=$CMAKE_OPTIONS" >> ${env:GITHUB_OUTPUT}
         echo "'install-linux.outputs.cmake-options' set to $CMAKE_OPTIONS"
       } else {
         # Minimal set of packages
-        sudo apt-get install -y -q ~nlibproj[0-9]+ ~nlibspatialite[0-9]+ ~nlibheif[0-9]+ ~nlibpoppler[0-9]+
-        sudo apt-get install -y -q unixodbc ~nlibgif[0-9]+ ~nlibpq[0-9]+
+        sudo apt-get install -y -q postgis
       }
 
   - name: Install prerequisites (macOS)
@@ -132,13 +131,16 @@ runs:
     shell: pwsh
     run: |
       # See: https://github.com/OSGeo/gdal/blob/1d1b02a/.github/workflows/cmake_builds.yml#L583-L587
+      brew update
       if ('${{ steps.wheel-cache.outputs.cache-hit }}' -ne 'true') {
         # Complete set of packages, mandatory if building wheel
         brew install postgresql || brew link postgresql
         brew install pkg-config openjpeg giflib doxygen unixodbc jpeg-turbo aom jpeg-xl libheif
-        brew install ccache swig
+        brew install swig
 
-        $CMAKE_OPTIONS = "-DCURL_ROOT=/usr/local/opt/curl"
+        $CMAKE_OPTIONS = "-DCMAKE_FIND_ROOT_PATH:FILEPATH=/usr/local/Cellar"
+        echo "HACK: Disable LibKML due to 'boost' dependency (see OSGeo/gdal#7588)"
+        $CMAKE_OPTIONS += " -DGDAL_USE_LIBKML=OFF"
         echo "cmake-options=$CMAKE_OPTIONS" >> ${env:GITHUB_OUTPUT}
         echo "'install-macos.outputs.cmake-options' set to $CMAKE_OPTIONS"
       }

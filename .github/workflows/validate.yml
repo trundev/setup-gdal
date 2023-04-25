@@ -41,16 +41,18 @@ jobs:
   # This is the same as above, but w/o "rebuild-cache: true"
   use-cache:
     needs: rebuid-cache
-    timeout-minutes: 10   # The cache makes it much faster, but not under macOS
+    timeout-minutes: ${{ matrix.timeout }}
     strategy:
       matrix:
         os: [windows-latest, ubuntu-latest]
         python-version: ['3.11']
         gdal-version: ['v3.6.3']
+        timeout: [5]
         include:
           - os: macos-latest      # Simplify tests under macOS
             python-version: '3.10'
             gdal-version: 'v3.6.3'
+            timeout: 15           # brew install is quite slow
       fail-fast: false
 
     runs-on: ${{ matrix.os }}
