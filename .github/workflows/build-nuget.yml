@@ -1,0 +1,136 @@
+name: Build GDAL python NuGet package
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner-image:
+        description: 'Operating system image to use'
+        required: true
+        default: 'windows-latest'
+        type: choice
+        options:
+        - windows-latest
+        - ubuntu-latest
+        - macos-latest
+      python-version:
+        description: "Version of Python to use"
+        required: true
+        default: "3.11"
+      gdal-version:
+        description: "Version of GDAL to build"
+        required: true
+        default: "v3.7.2"
+      rebuild-cache:
+        description: "Delete existing wheel cache and create a new one"
+        required: false
+        default: "false"
+        type: choice
+        options:
+        - false
+        - true
+      use-conda:
+        description: "Use conda packages, otherwise: Windows - development kit from www.gisinternals.com, others - apt/brew packages"
+        required: false
+        default: "true"
+        type: choice
+        options:
+        - true
+        - false
+      extra-packages:
+        description: "Install extra packages (conda, apt or brew)"
+        default: ""
+        required: false
+      publish:
+        description: "Publish result package in github"
+        required: false
+        default: "false"
+        type: choice
+        options:
+        - false
+        - true
+
+env:
+  PACKAGE_ID_FMT: "GDAL-py{sys.version_info.major}.{sys.version_info.minor}-{sys.platform}"
+
+jobs:
+  build:
+    runs-on: ${{ github.event.inputs.runner-image }}
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: nuget
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python ${{ github.event.inputs.python-version }} in ${{ github.event.inputs.runner-image }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ github.event.inputs.python-version }}
+
+    - name: Build GDAL ${{ github.event.inputs.gdal-version }}
+      uses: ./.
+      id: setup-gdal
+      with:
+        base-dir: .   # Workaround long path-names
+        gdal-version: ${{ github.event.inputs.gdal-version }}
+        rebuild-cache: ${{ github.event.inputs.rebuild-cache }}
+        use-conda: ${{ github.event.inputs.use-conda }}
+        extra-packages: ${{ github.event.inputs.extra-packages }}
+
+    - name: Examine result
+      run: |
+        python -m osgeo_utils.samples.gdalinfo --version
+        python -m osgeo_utils.samples.gdalinfo --build
+        python -m osgeo_utils.samples.gdalinfo --formats
+        python -m osgeo_utils.samples.ogrinfo --formats
+        python -c "from osgeo import gdal; print(gdal.VersionInfo(None))"
+        echo "Wheel package ${{ steps.setup-gdal.outputs.wheel-path }}"
+
+    - name: Select PACKAGE_ID and PACKAGE_VER
+      run: |
+        $PACKAGE_ID = python -c "import sys,sysconfig; print('${{ env.PACKAGE_ID_FMT }}'.format(sys=sys, sc=sysconfig))"
+        $PACKAGE_VER = python -c "from osgeo import gdal; print(gdal.__version__.replace('dev-', '-dev-', 1))"
+        if ($${{ inputs.use-conda }}) {$PACKAGE_VER += "-conda"}
+
+        echo "PACKAGE_ID=$PACKAGE_ID" >> $env:GITHUB_ENV
+        echo "PACKAGE_ID set to $PACKAGE_ID"
+        echo "PACKAGE_VER=$PACKAGE_VER" >> $env:GITHUB_ENV
+        echo "PACKAGE_VER set to $PACKAGE_VER"
+
+    - name: Create NuGet package (${{ env.PACKAGE_ID }} ${{ env.PACKAGE_VER }})
+      run: |
+        $WHEEL_DIR = (Get-Item "${{ steps.setup-gdal.outputs.wheel-path }}").Directory
+        nuget pack GDAL.nuspec -BasePath $WHEEL_DIR -Version ${{ env.PACKAGE_VER }} `
+            -Properties "id=${{ env.PACKAGE_ID }}"
+        if ($LASTEXITCODE) {exit $LASTEXITCODE}
+
+        # Obtain package name
+        $NUPKG_ITEM = Get-Item *.nupkg
+        $NUPKG_NAME = $NUPKG_ITEM.BaseName
+        echo "NUPKG_PATH=$NUPKG_ITEM" >> $env:GITHUB_ENV
+        echo "NUPKG_PATH set to $NUPKG_ITEM"
+        echo "NUPKG_NAME=$NUPKG_NAME" >> $env:GITHUB_ENV
+        echo "NUPKG_NAME set to $NUPKG_NAME"
+
+    - name: Upload artifact (${{ env.PACKAGE_ID }})
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ env.PACKAGE_ID }}
+        path: ${{ env.NUPKG_PATH }}
+
+    - name: Publish NuGet package (${{ env.NUPKG_NAME }})
+      if: github.event.inputs.publish == 'true'
+      run: |
+        # See https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-nuget-registry
+        echo "# Authenticate"
+        $OPTS = @()
+        # Password encryption is not supported on non-Windows platforms
+        if ('${{ runner.os }}' -ne 'Windows') {$OPTS += "--store-password-in-clear-text"}
+
+        dotnet nuget add source --username ${{ github.repository_owner }} --password ${{ secrets.GITHUB_TOKEN }} $OPTS `
+            --name github "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
+        if ($LASTEXITCODE) {exit $LASTEXITCODE}
+
+        echo "# Publish"
+        dotnet nuget push "${{ env.NUPKG_PATH }}" --api-key ${{ secrets.GITHUB_TOKEN }} --source "github"

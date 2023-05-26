@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2013/01/nuspec.xsd">
+  <metadata>
+    <id>$id$</id>   <!-- To be overriden by "-Properties" option -->
+    <version>0.0</version>  <!-- To be overriden by "-Version" option -->
+    <description>GDAL python wheel</description>
+    <authors>OSGeo</authors>
+    <repository type="git" url="https://github.com/trundev/setup-gdal/" />
+    <projectUrl>https://github.com/OSGeo/gdal/</projectUrl>
+  </metadata>
+  <files>
+    <file src="*.whl"/>    <!-- "-BasePath" must point to the the wheel dir -->
+  </files>
+</package>
