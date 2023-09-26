@@ -17,7 +17,7 @@ steps:
 - uses: actions/setup-python@v4
 - uses: actions/setup-gdal@main
   with:
-    gdal-version: 'v3.6.3'
+    gdal-version: 'v3.7.2'
 - run: python -m osgeo_utils.samples.gdalinfo --formats
 - run: python -c "from osgeo import gdal; print(gdal.__name__)"
 ```
@@ -45,7 +45,7 @@ All the input parameters are optional
 steps:
 - uses: actions/setup-gdal@main
   with:
-    gdal-version: 'v3.6.3'
+    gdal-version: 'v3.7.2'
     rebuild-cache: 'false'
     base-dir: 'GDAL~'
     cache-key-prefix: ''
@@ -103,6 +103,9 @@ installed packages might be reduced only to the ones mandatory for loading of th
 For a purpose of investigation of any issues with this Python wheel-file, it can be obtained as an artifact
 from the [build-wheel.yml](.github/workflows/build-wheel.yml) workflow, see
 [Build GDAL python wheel](https://github.com/trundev/setup-gdal/actions/workflows/build-wheel.yml).
+The "conda" builds are mostly self-contained and usually do not require extra installations, except the
+Windows one which may require
+[Microsoft ODBC Driver 17](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16#version-17).
 
 
 ### Setup using conda packages

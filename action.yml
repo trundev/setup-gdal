@@ -13,7 +13,7 @@ inputs:
     type: boolean
   gdal-version:
     description: "Version of GDAL to setup (OSGeo/gdal repository reference)"
-    default: "v3.6.3"
+    default: "v3.7.2"
     required: false
     type: string
   cache-key-prefix:

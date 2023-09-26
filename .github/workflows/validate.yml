@@ -11,12 +11,12 @@ jobs:
       matrix:
         os: [windows-latest, ubuntu-latest]
         python-version: ['3.11', '3.7']
-        gdal-version: ['v3.6.3']
+        gdal-version: ['v3.7.2']
         use-conda: [true, false]
         include:
           - os: macos-latest    # Simplify tests under macOS
             python-version: '3.10'
-            gdal-version: 'v3.6.3'
+            gdal-version: 'v3.7.2'
             use-conda: false
       fail-fast: false
 
@@ -49,13 +49,13 @@ jobs:
       matrix:
         os: [windows-latest, ubuntu-latest]
         python-version: ['3.11']
-        gdal-version: ['v3.6.3']
+        gdal-version: ['v3.7.2']
         use-conda: [true, false]
         timeout: [5]
         include:
           - os: macos-latest      # Simplify tests under macOS
             python-version: '3.10'
-            gdal-version: 'v3.6.3'
+            gdal-version: 'v3.7.2'
             use-conda: false
             timeout: 15           # brew install is quite slow
       fail-fast: false
