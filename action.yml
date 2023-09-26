@@ -13,7 +13,7 @@ inputs:
     type: boolean
   gdal-version:
     description: "Version of GDAL to setup (OSGeo/gdal repository reference)"
-    default: "v3.8.1"
+    default: ""
     required: false
     type: string
   cache-key-prefix:
@@ -43,7 +43,7 @@ inputs:
     required: false
     type: string
   GITHUB_TOKEN:
-    description: "Allow GDAL to be installed from NuGet package"
+    description: "Allow GDAL to be installed from NuGet package and/or to get default value for 'gdal-version' from vars.GDAL_VERSION"
     default: ""
     required: false
     type: string
@@ -61,12 +61,23 @@ outputs:
 runs:
   using: "composite"
   steps:
-  - name: Select cache key
+  - name: Select GDAL version and cache key
     id: info
     shell: pwsh
     run: |
+      # Use requested version or the default from "Repository Variables"
+      $GDAL_VERSION = "${{ inputs.gdal-version }}"
+      if (-not $GDAL_VERSION) {
+        # Retrieve vars.GDAL_VERSION from action's repository
+        $data = Invoke-WebRequest -H @{Accept='application/vnd.github+json'; Authorization='Bearer ${{ inputs.GITHUB_TOKEN }}'} `
+           "${{ github.api_url }}/repos/trundev/setup-gdal/actions/variables/GDAL_VERSION"
+        $GDAL_VERSION = $(ConvertFrom-Json $data.Content).value
+      }
+      echo "gdal-version=$GDAL_VERSION" >> ${env:GITHUB_OUTPUT}
+      echo "'info.outputs.gdal-version' set to $GDAL_VERSION"
+
       $VER = python -c "import sys; print('{0.major}.{0.minor}'.format(sys.version_info))"
-      $KEY = "${{ inputs.cache-key-prefix }}${{ runner.os }}-py${VER}-GDAL${{ inputs.gdal-version }}"
+      $KEY = "${{ inputs.cache-key-prefix }}${{ runner.os }}-py${VER}-GDAL${GDAL_VERSION}"
       if ('${{ inputs.use-conda }}' -eq 'true') {$KEY += "-conda"}
       echo "cache-key=$KEY" >> ${env:GITHUB_OUTPUT}
       echo "'info.outputs.cache-key' set to $KEY"
@@ -139,7 +150,7 @@ runs:
     uses: actions/checkout@v4
     with:
       repository: osgeo/gdal
-      ref: ${{ inputs.gdal-version }}
+      ref: ${{ steps.info.outputs.gdal-version }}
       path: ${{ inputs.base-dir }}/gdal
 
   - name: Download GIS SDK release (Windows)
@@ -298,7 +309,7 @@ runs:
         Copy-Item -EA Continue "$env:LIB/gdal_i.lib" "$env:LIB/gdal.lib"
       }
 
-      python -m pip wheel gdal==${{ inputs.gdal-version }} --wheel-dir ${{ inputs.base-dir }}
+      python -m pip wheel gdal==${{ steps.info.outputs.gdal-version }} --wheel-dir ${{ inputs.base-dir }}
 
   - name: Locate GDAL wheel
     id: artifact-info

@@ -5,9 +5,6 @@ on:
     branches: [ main, '**-test' ]
   pull_request:
 
-env:
-  GDAL_VERSION: 'v3.8.1'
-
 jobs:
   #
   # Validate GDAL build process
@@ -35,11 +32,11 @@ jobs:
       with:
         python-version: "${{ matrix.python-version }}"
 
-    - name: Set up GDAL ${{ env.GDAL_VERSION }}
+    - name: Set up GDAL ${{ vars.GDAL_VERSION }}
       uses: ./.
       id: setup-gdal
       with:
-        gdal-version: "${{ env.GDAL_VERSION }}"
+        gdal-version: "${{ vars.GDAL_VERSION }}"
         rebuild-cache: true
         use-conda: ${{ matrix.use-conda }}
 
@@ -74,11 +71,11 @@ jobs:
       with:
         python-version: "${{ matrix.python-version }}"
 
-    - name: Set up GDAL ${{ env.GDAL_VERSION }}
+    - name: Set up GDAL ${{ vars.GDAL_VERSION }}
       uses: ./.
       id: setup-gdal
       with:
-        gdal-version: "${{ env.GDAL_VERSION }}"
+        gdal-version: "${{ vars.GDAL_VERSION }}"
         use-conda: ${{ matrix.use-conda }}
 
     - name: Check the package
