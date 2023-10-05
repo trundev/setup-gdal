@@ -23,7 +23,7 @@ on:
       rebuild-cache:
         description: "Delete existing wheel cache and create a new one"
         required: false
-        default: "false"
+        default: "true"
         type: choice
         options:
         - false

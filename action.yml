@@ -42,6 +42,11 @@ inputs:
     default: "-DCMAKE_BUILD_TYPE=Release"
     required: false
     type: string
+  GITHUB_TOKEN:
+    description: "Allow GDAL to be installed from NuGet package"
+    default: ""
+    required: false
+    type: string
 outputs:
   wheel-path:
     description: "Path to generated GDAL Python wheel package"
@@ -87,8 +92,45 @@ runs:
         ${{ inputs.base-dir }}/*.whl
       key: ${{ steps.info.outputs.cache-key }}
 
+  - name: Try NuGet package
+    if: ${{ steps.wheel-cache.outputs.cache-hit != 'true' }}
+    id: nuget-package
+    shell: pwsh
+    env:  # Must sync with build-nuget.yml / PACKAGE_ID_FMT
+      PACKAGE_ID_FMT: "GDAL-py{sys.version_info.major}.{sys.version_info.minor}-{sys.platform}"
+    run: |
+      echo "# Try using a NuGet package"
+      if ("${{ inputs.GITHUB_TOKEN }}" -and ("${{ inputs.rebuild-cache }}" -in "false", "")) {
+        $OPTS = @()
+        # Password encryption is not supported on non-Windows platforms
+        if ('${{ runner.os }}' -ne 'Windows') {$OPTS += "--store-password-in-clear-text"}
+
+        dotnet nuget add source --username ${{ github.actor }} --password ${{ inputs.GITHUB_TOKEN }} $OPTS `
+            --name github "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
+      } else {
+        echo 'NuGet package support requires GITHUB_TOKEN with "read:packages" access and "rebuild-cache=false"'
+        $LASTEXITCODE=255
+      }
+      if (! $LASTEXITCODE) {
+        # Select NuGet package ID and version
+        $PACKAGE_ID = python -c "import sys,sysconfig; print('${{ env.PACKAGE_ID_FMT }}'.format(sys=sys, sc=sysconfig))"
+        $PACKAGE_VER = "${{ inputs.gdal-version }}"
+        if ($PACKAGE_VER[0] -eq "v") {$PACKAGE_VER = $PACKAGE_VER.Substring(1)}
+        if ($${{ inputs.use-conda }}) {$PACKAGE_VER += "-conda"}
+
+        echo "# Installing NuGet package $PACKAGE_ID, version $PACKAGE_VER"
+        nuget install $PACKAGE_ID -Version $PACKAGE_VER -OutputDirectory ${{ inputs.base-dir }}
+      }
+      if (! $LASTEXITCODE) {
+        Move-Item -force ${{ inputs.base-dir }}/*/*.whl ${{ inputs.base-dir }}
+      }
+      $OUTCOME = ("success","failure")[$LASTEXITCODE -gt 0]
+      echo "outcome=$OUTCOME" >> ${env:GITHUB_OUTPUT}
+      echo "'nuget-package.outputs.outcome' set to $OUTCOME"
+      exit 0  # No failure
+
   - name: Clone GDAL sources
-    if: steps.wheel-cache.outputs.cache-hit != 'true'
+    if: steps.nuget-package.outputs.outcome == 'failure'
     uses: actions/checkout@v3
     with:
       repository: osgeo/gdal
@@ -96,7 +138,7 @@ runs:
       path: ${{ inputs.base-dir }}/gdal
 
   - name: Download GIS SDK release (Windows)
-    if: ${{ inputs.use-conda != 'true' && runner.os == 'Windows' && steps.wheel-cache.outputs.cache-hit != 'true' }}
+    if: ${{ inputs.use-conda != 'true' && runner.os == 'Windows' && steps.nuget-package.outputs.outcome == 'failure' }}
     id: download-sdk
     shell: pwsh
     run: |
@@ -114,7 +156,7 @@ runs:
       echo "'download-sdk.outputs.sdk-dir' set to $SDK_BASE"
 
   - name: Setup conda
-    if: ${{ inputs.use-conda == 'true' && steps.wheel-cache.outputs.cache-hit != 'true' }}
+    if: ${{ inputs.use-conda == 'true' && steps.nuget-package.outputs.outcome == 'failure' }}
     id: setup-conda
     uses: conda-incubator/setup-miniconda@v2
     with:
@@ -148,7 +190,7 @@ runs:
     run: |
       # See: https://github.com/OSGeo/gdal/blob/1d1b02a/.github/workflows/cmake_builds.yml#L54-L63
       sudo apt-get update
-      if ('${{ steps.wheel-cache.outputs.cache-hit }}' -ne 'true') {
+      if ('${{ steps.nuget-package.outputs.outcome }}' -eq 'failure') {
         # Complete set of packages, mandatory if building wheel
         sudo apt-get install -y -q `
             postgresql-*-postgis-3 postgresql-client-* postgresql-*-postgis-3-scripts `
@@ -171,7 +213,7 @@ runs:
     run: |
       # See: https://github.com/OSGeo/gdal/blob/1d1b02a/.github/workflows/cmake_builds.yml#L583-L587
       brew update
-      if ('${{ steps.wheel-cache.outputs.cache-hit }}' -ne 'true') {
+      if ('${{ steps.nuget-package.outputs.outcome }}' -eq 'failure') {
         # Complete set of packages, mandatory if building wheel
         brew install postgresql || brew link postgresql
         brew install pkg-config openjpeg giflib doxygen unixodbc jpeg-turbo aom jpeg-xl libheif
@@ -192,7 +234,7 @@ runs:
       brew uninstall --ignore-dependencies gdal
 
   - name: Build GDAL and wheel (CMake)
-    if: ${{ steps.download-sdk.outputs.sdk-dir == '' && steps.wheel-cache.outputs.cache-hit != 'true' }}
+    if: ${{ steps.download-sdk.outputs.sdk-dir == '' && steps.nuget-package.outputs.outcome == 'failure' }}
     id: build-gdal
     shell: pwsh
     run: |
@@ -223,7 +265,7 @@ runs:
       echo "::endgroup::"
 
   - name: Create GDAL wheel (from SDK)
-    if: ${{ steps.download-sdk.outputs.sdk-dir != '' && steps.wheel-cache.outputs.cache-hit != 'true' }}
+    if: ${{ steps.download-sdk.outputs.sdk-dir != '' && steps.nuget-package.outputs.outcome == 'failure' }}
     shell: pwsh
     run: |
       # Prerequisites: numpy is needed to build gdal_array
@@ -254,7 +296,7 @@ runs:
       echo "'artifact-info.outputs.wheel-path' set to $GDAL_WHEEL"
 
   - name: Update ${{ steps.artifact-info.outputs.wheel-path }} with GDAL DLLs
-    if: steps.wheel-cache.outputs.cache-hit != 'true'
+    if: steps.nuget-package.outputs.outcome == 'failure'
     # GDAL and Python 3.8 problem:
     # With USE_PATH_FOR_GDAL_PYTHON and python 3.8, "osgeo\__init__.py" pass all directories
     # from PATH to os.add_dll_directory(), which fails if any of them is missing.

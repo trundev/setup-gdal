@@ -57,10 +57,12 @@ jobs:
       uses: ./.
       id: setup-gdal
       with:
+        base-dir: .   # Workaround long path-names
         gdal-version: ${{ github.event.inputs.gdal-version }}
         rebuild-cache: ${{ github.event.inputs.rebuild-cache }}
         use-conda: ${{ github.event.inputs.use-conda }}
         extra-packages: ${{ github.event.inputs.extra-packages }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     # Keep the wheel as an artifact even in case of failure, to allow investigation
     - name: Select artifact name
