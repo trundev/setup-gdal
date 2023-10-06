@@ -287,6 +287,9 @@ runs:
         Move-Item $OSGEO_UTILS_DIR\plugins\gdal_GEOR.dll,$OSGEO_UTILS_DIR\plugins\ogr_OCI.dll `
             $OSGEO_UTILS_DIR\plugins-optional -EA SilentlyContinue
 
+        echo "Copy all GDAL_DATA files to $OSGEO_UTILS_DIR\gdal-data"
+        Copy-Item -Recurse "$GDAL_BIN/gdal-data" "$OSGEO_UTILS_DIR\gdal-data"
+
         echo "Copy all PROJ9 files to $OSGEO_UTILS_DIR\proj"
         Copy-Item -Recurse "$GDAL_BIN/proj9/share" "$OSGEO_UTILS_DIR\proj"
 
@@ -317,6 +320,9 @@ runs:
 
         echo "Copy all GDAL programs to $OSGEO_UTILS_DIR/apps"
         Copy-Item -Exclude *.py,*.dll "$GDAL_BIN/*" "$OSGEO_UTILS_DIR/apps"
+
+        echo "Copy all GDAL_DATA files to $OSGEO_UTILS_DIR/gdal-data"
+        Copy-Item -Recurse -EA SilentlyContinue "gdal/data" "$OSGEO_UTILS_DIR/gdal-data"
 
         if ($env:CONDA_PREFIX) {
           echo "Copy all PROJ files to $OSGEO_UTILS_DIR\proj"
@@ -354,6 +360,12 @@ runs:
       $OSGEO_DIR = python -c "from importlib import util; osgeo=util.find_spec('osgeo_utils'); print(osgeo.submodule_search_locations[0])"
       echo "utils-path=$OSGEO_DIR" >> ${env:GITHUB_OUTPUT}
       echo "'install-wheel.outputs.utils-path' set to $OSGEO_DIR"
+
+      $GDAL_DATA = Join-Path $OSGEO_DIR "gdal-data"
+      if (Test-Path $GDAL_DATA) {
+        echo "GDAL_DATA=$GDAL_DATA" >> ${env:GITHUB_ENV}
+        echo "GDAL_DATA set to $GDAL_DATA"
+      }
 
       $GDAL_DRIVER_PATH = Join-Path $OSGEO_DIR "plugins"
       if (Test-Path $GDAL_DRIVER_PATH) {
