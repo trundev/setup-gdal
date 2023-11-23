@@ -96,17 +96,16 @@ runs:
     if: ${{ steps.wheel-cache.outputs.cache-hit != 'true' }}
     id: nuget-package
     shell: pwsh
-    env:  # Must sync with build-nuget.yml / PACKAGE_ID_FMT
+    env:
+      # Must sync with build-nuget.yml / PACKAGE_ID_FMT
       PACKAGE_ID_FMT: "GDAL-py{sys.version_info.major}.{sys.version_info.minor}-{sys.platform}"
+      # Take action's owner from 'action_repository', but it is empty when invoked from same repo
+      NUGET_SOURCE: "https://nuget.pkg.github.com/${{ github.action_repository || github.repository }}/../index.json"
     run: |
       echo "# Try using a NuGet package"
       if ("${{ inputs.GITHUB_TOKEN }}" -and ("${{ inputs.rebuild-cache }}" -in "false", "")) {
-        $OPTS = @()
-        # Password encryption is not supported on non-Windows platforms
-        if ('${{ runner.os }}' -ne 'Windows') {$OPTS += "--store-password-in-clear-text"}
-
-        dotnet nuget add source --username ${{ github.actor }} --password ${{ inputs.GITHUB_TOKEN }} $OPTS `
-            --name github "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
+        nuget sources Add -Name github -Source ${{ env.NUGET_SOURCE }} `
+            -Username ${{ github.actor }} -Password ${{ inputs.GITHUB_TOKEN }}
       } else {
         echo 'NuGet package support requires GITHUB_TOKEN with "read:packages" access and "rebuild-cache=false"'
         $LASTEXITCODE=255
@@ -255,6 +254,11 @@ runs:
       cmake --build "$BUILD_DIR" --config Release --target install
       echo "::endgroup::"
       if ($LASTEXITCODE) {exit $LASTEXITCODE}
+
+      # Workaround for macos / python>3.10 failure:
+      # "Install Wheel" step retains the partial GDAL installation, from the "cmake --target install" above
+      # See message: "GDAL is already installed with the same version..."
+      python -m pip uninstall -y GDAL
 
       echo "install-dir=$INSTALL_DIR" >> ${env:GITHUB_OUTPUT}
       echo "'build-gdal.outputs.install-dir' set to $INSTALL_DIR"
