@@ -13,7 +13,7 @@ inputs:
     type: boolean
   gdal-version:
     description: "Version of GDAL to setup (OSGeo/gdal repository reference)"
-    default: "v3.7.2"
+    default: "v3.7.3"
     required: false
     type: string
   cache-key-prefix:
@@ -71,7 +71,7 @@ runs:
       echo "cache-key=$KEY" >> ${env:GITHUB_OUTPUT}
       echo "'info.outputs.cache-key' set to $KEY"
 
-  - uses: actions/github-script@v6
+  - uses: actions/github-script@v7
     if: inputs.rebuild-cache == 'true'
     with:
       script: |
@@ -130,7 +130,7 @@ runs:
 
   - name: Clone GDAL sources
     if: steps.nuget-package.outputs.outcome == 'failure'
-    uses: actions/checkout@v3
+    uses: actions/checkout@v4
     with:
       repository: osgeo/gdal
       ref: ${{ inputs.gdal-version }}

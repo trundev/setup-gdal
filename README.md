@@ -17,7 +17,7 @@ steps:
 - uses: actions/setup-python@v4
 - uses: actions/setup-gdal@main
   with:
-    gdal-version: 'v3.7.2'
+    gdal-version: 'v3.7.3'
 - run: python -m osgeo_utils.samples.gdalinfo --formats
 - run: python -c "from osgeo import gdal; print(gdal.__name__)"
 ```
@@ -45,7 +45,7 @@ All the input parameters are optional
 steps:
 - uses: actions/setup-gdal@main
   with:
-    gdal-version: 'v3.7.2'
+    gdal-version: 'v3.7.3'
     rebuild-cache: 'false'
     base-dir: 'GDAL~'
     cache-key-prefix: ''

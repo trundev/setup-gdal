@@ -15,11 +15,11 @@ on:
       python-version:
         description: "Version of Python to use"
         required: true
-        default: "3.11"
+        default: "3.12"
       gdal-version:
         description: "Version of GDAL to build"
         required: true
-        default: "v3.7.2"
+        default: "v3.7.3"
       rebuild-cache:
         description: "Delete existing wheel cache and create a new one"
         required: false
@@ -61,7 +61,7 @@ jobs:
         working-directory: nuget
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Set up Python ${{ github.event.inputs.python-version }} in ${{ github.event.inputs.runner-image }}
       uses: actions/setup-python@v4
