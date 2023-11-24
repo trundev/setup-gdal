@@ -13,7 +13,7 @@ inputs:
     type: boolean
   gdal-version:
     description: "Version of GDAL to setup (OSGeo/gdal repository reference)"
-    default: "v3.7.3"
+    default: "v3.8.1"
     required: false
     type: string
   cache-key-prefix:
@@ -23,7 +23,7 @@ inputs:
     type: string
   use-conda:
     description: "Use conda packages, otherwise: Windows - development kit from www.gisinternals.com, others - apt/brew packages"
-    default: false
+    default: true
     required: false
     type: boolean
   extra-packages:
@@ -128,6 +128,12 @@ runs:
       echo "'nuget-package.outputs.outcome' set to $OUTCOME"
       exit 0  # No failure
 
+  - name: Enable git core.longpaths
+    if: steps.nuget-package.outputs.outcome == 'failure'
+    # See https://github.com/actions/checkout/issues/242
+    shell: pwsh
+    run: git config --global core.longpaths true
+
   - name: Clone GDAL sources
     if: steps.nuget-package.outputs.outcome == 'failure'
     uses: actions/checkout@v4
@@ -178,6 +184,9 @@ runs:
       if ("${{ runner.os }}" -eq "Windows") {
         echo "HACK: Disable preinstalled MYSQL due to ZLIB incompatibility"
         $CMAKE_OPTIONS += " -DGDAL_USE_MYSQL:BOOL=OFF"
+      } elseif ("${{ runner.os }}" -eq "macOS") {
+        echo "HACK: Replace preinstalled 'unixodbc' by conda one to fix 'libiconv' incompatibilities"
+        conda install --yes unixodbc
       }
       echo "cmake-options=$CMAKE_OPTIONS" >> ${env:GITHUB_OUTPUT}
       echo "'install-conda.outputs.cmake-options' set to $CMAKE_OPTIONS"

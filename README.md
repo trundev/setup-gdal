@@ -17,7 +17,7 @@ steps:
 - uses: actions/setup-python@v4
 - uses: actions/setup-gdal@main
   with:
-    gdal-version: 'v3.7.3'
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 - run: python -m osgeo_utils.samples.gdalinfo --formats
 - run: python -c "from osgeo import gdal; print(gdal.__name__)"
 ```
@@ -30,8 +30,8 @@ steps:
 All the input parameters are optional
 
 - `gdal-version` - The GDAL version to be installed. This is actually a git-tag (or any reference) from
-  [OSGeo/gdal](https://github.com/OSGeo/gdal/tags), but for Windows runners must also match the version
-  to be installed by `pip`.
+  [OSGeo/gdal](https://github.com/OSGeo/gdal/tags).
+  For Windows runners and `use-conda=false`, it must match the version to be installed by `pip`.
 - `rebuild-cache` - When `true` the internal cache for specific configuration (if exists) will be discarded and
   a fresh one will be created
 - `base-dir` - The base directory under `$GITHUB_WORKSPACE` to perform the build
@@ -39,18 +39,21 @@ All the input parameters are optional
   incompatible between different versions of the same OS (like `macOS-11` and `macOS-12`).
 - `use-conda` - Use conda, instead of GISInternals/system packages
 - `extra-packages` - Install extra (optional) packages to be used by GDAL build process
+- `GITHUB_TOKEN` - GitHub token to allow installing from a [NuGet package](https://github.com/trundev?tab=packages&repo_name=setup-gdal).
+  When requested package is available, this skips the build steps, just like when using [actions cache](https://github.com/actions/cache).
 
 **Default inputs example**
 ```yaml
 steps:
 - uses: actions/setup-gdal@main
   with:
-    gdal-version: 'v3.7.3'
+    gdal-version: 'v3.8.1'
     rebuild-cache: 'false'
     base-dir: 'GDAL~'
     cache-key-prefix: ''
-    use-conda: 'false'
+    use-conda: 'true'
     extra-packages: ''
+    GITHUB_TOKEN: ''
 ```
 
 ## Outputs
@@ -66,6 +69,7 @@ steps:
 ### Environment variables
 
 - `GDAL_DRIVER_PATH` - Path to GDAL `plugins`, if available
+- `GDAL_DATA` - Path to the various GDAL data files, see [GDAL general options](https://gdal.org/user/configoptions.html#general-options)
 - `PROJ_DATA` - Path to the [proj-data](https://proj.org/) package, if available
 - `PATH` - _[Windows only]_ The variable is updated with `osgeo-path` to allow loading of `gdal.dll`
 - `LD_LIBRARY_PATH` - _[Linux & Mac]_ The variable is updated with `osgeo-path` to allow loading of `libgdal.so`
@@ -76,6 +80,8 @@ steps:
 steps:
 - uses: actions/setup-gdal@main
   id: gdal
+  with:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 - run: echo "wheel-path: ${{ steps.gdal.outputs.wheel-path }}"
 - run: echo "osgeo-path: ${{ steps.gdal.outputs.osgeo-path }}"
 - run: echo "utils-path: ${{ steps.gdal.outputs.utils-path }}"
@@ -93,6 +99,11 @@ from the [GDAL programs](https://gdal.org/programs/) and optionally the GDAL dri
 An [actions cache](https://github.com/actions/cache) is used to improve execution time. The cache keeps only
 the generated wheel-file, which is intended to includes everything needed. In case of a cache hit, the
 installed packages might be reduced only to the ones mandatory for loading of the Python modules.
+
+Besides the cache, the action can try to install a GDAL python wheel from one of prebuild NuGet packages,
+available [here](https://github.com/trundev?tab=packages&repo_name=setup-gdal).
+This requires `rebuild-cache` to be `false` (default) and `GITHUB_TOKEN` to be set to a GitHub token with
+"read:packages" access (usually ``${{ secrets.GITHUB_TOKEN }}``).
 
 > Note that, because of the reduction of installed packages, some GDAL modules may NOT work after a cached
 > wheel was used, even if they were working at first run.
@@ -148,6 +159,7 @@ dependencies. This step also adds (for convenience only):
 
 - [GDAL programs](https://gdal.org/programs/) under `osgeo_utils/apps`
 - The extra GDAL plugins under `osgeo_utils/plugins` (env-var `GDAL_DRIVER_PATH`)
+- Various GDAL data files under `osgeo_utils/gdal-data` (env-var `GDAL_DATA`)
 - The [proj-data](https://proj.org/) package under `osgeo_utils/proj` (env-var `PROJ_DATA`)
 
 
@@ -158,6 +170,8 @@ Code from [Reproject a Geometry](https://pcjericks.github.io/py-gdalogr-cookbook
 ```yaml
 steps:
 - uses: actions/setup-gdal@main
+  with:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 - shell: python
   run: |
     from osgeo import ogr

@@ -19,7 +19,7 @@ on:
       gdal-version:
         description: "Version of GDAL to build"
         required: true
-        default: "v3.7.3"
+        default: "v3.8.1"
       rebuild-cache:
         description: "Delete existing wheel cache and create a new one"
         required: false

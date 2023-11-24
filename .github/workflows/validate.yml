@@ -6,7 +6,7 @@ on:
   pull_request:
 
 env:
-  GDAL_VERSION: 'v3.7.3'
+  GDAL_VERSION: 'v3.8.1'
 
 jobs:
   #
@@ -19,9 +19,10 @@ jobs:
         python-version: ['3.12', '3.7']
         use-conda: [true, false]
         exclude:
-          #- os: windows-latest
-          #  use-conda: false    # GIS SDK may not match GDAL version
+          - os: windows-latest
+            use-conda: false    # GIS SDK may not match GDAL version
           - os: macos-latest
+            python-version: 3.7
             use-conda: true     # Still "Symbol not found" issues with conda
       fail-fast: false
 
@@ -58,10 +59,8 @@ jobs:
         python-version: ['3.12']
         use-conda: [true, false]
         exclude:
-          #- os: windows-latest
-          #  use-conda: false
-          - os: macos-latest
-            use-conda: true
+          - os: windows-latest
+            use-conda: false
       fail-fast: false
 
     runs-on: ${{ matrix.os }}
