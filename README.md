@@ -14,7 +14,7 @@ See [action.yml](action.yml), also the [build-wheel.yml](.github/workflows/build
 
 ```yaml
 steps:
-- uses: actions/setup-python@v4
+- uses: actions/setup-python@v5
 - uses: actions/setup-gdal@main
   with:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

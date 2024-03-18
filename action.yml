@@ -85,7 +85,7 @@ runs:
           console.log("Delete cache failed: " + error.message)
         }
 
-  - uses: actions/cache@v3
+  - uses: actions/cache@v4
     id: wheel-cache
     with:
       path: |
@@ -163,7 +163,7 @@ runs:
   - name: Setup conda
     if: ${{ inputs.use-conda == 'true' && steps.nuget-package.outputs.outcome == 'failure' }}
     id: setup-conda
-    uses: conda-incubator/setup-miniconda@v2
+    uses: conda-incubator/setup-miniconda@v3
     with:
       activate-environment: gdalenv
       channels: conda-forge
@@ -180,7 +180,7 @@ runs:
       echo "::endgroup::"
       if ($LASTEXITCODE) {exit $LASTEXITCODE}
 
-      $CMAKE_OPTIONS = '-DCMAKE_FIND_ROOT_PATH:FILEPATH="{0}"' -f $env:CONDA_PREFIX
+      $CMAKE_OPTIONS = '-DCMAKE_PREFIX_PATH:FILEPATH={0};{0}/Library' -f $env:CONDA_PREFIX
       if ("${{ runner.os }}" -eq "Windows") {
         echo "HACK: Disable preinstalled MYSQL due to ZLIB incompatibility"
         $CMAKE_OPTIONS += " -DGDAL_USE_MYSQL:BOOL=OFF"
@@ -227,7 +227,7 @@ runs:
         brew install pkg-config openjpeg giflib doxygen unixodbc jpeg-turbo aom jpeg-xl libheif
         brew install swig
 
-        $CMAKE_OPTIONS = "-DCMAKE_FIND_ROOT_PATH:FILEPATH=/usr/local/Cellar"
+        $CMAKE_OPTIONS = "-DCMAKE_PREFIX_PATH:FILEPATH=/usr/local/Cellar"
         echo "HACK: Disable LibKML due to 'boost' dependency (see OSGeo/gdal#7588)"
         $CMAKE_OPTIONS += " -DGDAL_USE_LIBKML=OFF"
         echo "cmake-options=$CMAKE_OPTIONS" >> ${env:GITHUB_OUTPUT}
@@ -255,7 +255,7 @@ runs:
       $CMAKE_OPTIONS = '${{ inputs.CMAKE_OPTIONS }} ${{ steps.install-conda.outputs.cmake-options }}'
       $CMAKE_OPTIONS += ' ${{ steps.install-linux.outputs.cmake-options }} ${{ steps.install-macos.outputs.cmake-options }}'
       echo "::group::cmake configure: $CMAKE_OPTIONS"
-      cmake $CMAKE_OPTIONS.Split() -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -S ${{ inputs.base-dir }}/gdal -B "$BUILD_DIR"
+      cmake $CMAKE_OPTIONS.Trim().Split() -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" -S ${{ inputs.base-dir }}/gdal -B "$BUILD_DIR"
       echo "::endgroup::"
       if ($LASTEXITCODE) {exit $LASTEXITCODE}
 
