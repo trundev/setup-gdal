@@ -15,7 +15,7 @@ See [action.yml](action.yml), also the [build-wheel.yml](.github/workflows/build
 ```yaml
 steps:
 - uses: actions/setup-python@v5
-- uses: actions/setup-gdal@main
+- uses: trundev/setup-gdal@main
   with:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 - run: python -m osgeo_utils.samples.gdalinfo --formats
@@ -45,7 +45,7 @@ All the input parameters are optional
 **Default inputs example**
 ```yaml
 steps:
-- uses: actions/setup-gdal@main
+- uses: trundev/setup-gdal@main
   with:
     gdal-version: 'v3.8.1'
     rebuild-cache: 'false'
@@ -78,7 +78,7 @@ steps:
 **Use of outputs example**
 ```yaml
 steps:
-- uses: actions/setup-gdal@main
+- uses: trundev/setup-gdal@main
   id: gdal
   with:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -169,7 +169,7 @@ Code from [Reproject a Geometry](https://pcjericks.github.io/py-gdalogr-cookbook
 
 ```yaml
 steps:
-- uses: actions/setup-gdal@main
+- uses: trundev/setup-gdal@main
   with:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 - shell: python
