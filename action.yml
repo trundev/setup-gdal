@@ -166,7 +166,7 @@ runs:
     uses: conda-incubator/setup-miniconda@v3
     with:
       activate-environment: gdalenv
-      channels: conda-forge
+      channels: defaults, conda-forge
 
   - name: Install prerequisites (conda)
     if: ${{ steps.setup-conda.outcome == 'success' }}
