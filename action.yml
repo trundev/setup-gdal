@@ -13,7 +13,7 @@ inputs:
     type: boolean
   gdal-version:
     description: "Version of GDAL to setup (OSGeo/gdal repository reference)"
-    default: "v3.8.1"
+    default: "v3.9.3"
     required: false
     type: string
   cache-key-prefix:
@@ -223,7 +223,6 @@ runs:
       brew update
       if ('${{ steps.nuget-package.outputs.outcome }}' -eq 'failure') {
         # Complete set of packages, mandatory if building wheel
-        brew install postgresql || brew link postgresql
         brew install pkg-config openjpeg giflib doxygen unixodbc jpeg-turbo aom jpeg-xl libheif
         brew install swig
 
@@ -233,6 +232,7 @@ runs:
         echo "cmake-options=$CMAKE_OPTIONS" >> ${env:GITHUB_OUTPUT}
         echo "'install-macos.outputs.cmake-options' set to $CMAKE_OPTIONS"
       }
+      brew install postgresql || brew link postgresql
       # Note: dependencies for postgis:
       # cfitsio, popt, epsilon, expat, freexl, geos, libaec, hdf5, json-c, libxml2, libdap, proj, libgeotiff,
       # librttopo, minizip, libspatialite, netcdf, numpy, nspr, nss, poppler, xerces-c, gdal, protobuf, protobuf-c,
