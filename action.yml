@@ -13,7 +13,7 @@ inputs:
     type: boolean
   gdal-version:
     description: "Version of GDAL to setup (OSGeo/gdal repository reference)"
-    default: "v3.8.1"
+    default: "v3.9.2"
     required: false
     type: string
   cache-key-prefix:
@@ -166,7 +166,7 @@ runs:
     uses: conda-incubator/setup-miniconda@v3
     with:
       activate-environment: gdalenv
-      channels: conda-forge
+      channels: conda-forge, defaults
 
   - name: Install prerequisites (conda)
     if: ${{ steps.setup-conda.outcome == 'success' }}
