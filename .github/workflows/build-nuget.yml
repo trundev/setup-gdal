@@ -63,6 +63,20 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Initial job summary
+      run: |
+        @"
+        ### Build parameters
+        - runner-image: ${{ github.event.inputs.runner-image }}
+        - python-version: ${{ github.event.inputs.python-version }}
+        - gdal-version: ${{ github.event.inputs.gdal-version }}
+        - rebuild-cache: ${{ github.event.inputs.rebuild-cache }}
+        - use-conda: ${{ github.event.inputs.use-conda }}
+        - extra-packages: ${{ github.event.inputs.extra-packages }}
+        - publish: ${{ github.event.inputs.publish }}
+
+        "@ >> $env:GITHUB_STEP_SUMMARY
+
     - name: Set up Python ${{ github.event.inputs.python-version }} in ${{ github.event.inputs.runner-image }}
       uses: actions/setup-python@v5
       with:
@@ -78,14 +92,41 @@ jobs:
         use-conda: ${{ github.event.inputs.use-conda }}
         extra-packages: ${{ github.event.inputs.extra-packages }}
 
-    - name: Examine result
+    - name: Examine result / Update job summary
       run: |
         python -m osgeo_utils.samples.gdalinfo --version
         python -m osgeo_utils.samples.gdalinfo --build
-        python -m osgeo_utils.samples.gdalinfo --formats
-        python -m osgeo_utils.samples.ogrinfo --formats
-        python -c "from osgeo import gdal; print(gdal.VersionInfo(None))"
         echo "Wheel package ${{ steps.setup-gdal.outputs.wheel-path }}"
+
+        if ($env:CONDA_PREFIX) {@"
+        ### Conda info
+        - Version: $(conda --version)
+        - <details><summary>Packages:</summary>
+
+            | name | version | build | channel |
+            |---|---|---|---|
+            $(conda list --json | ConvertFrom-Json | ForEach {echo "| $($_.name) | $($_.version) | $($_.build_string) | $($_.channel) |"} | Join-String -Separator "<br>`n    ")
+          </details>
+
+        "@ >> $env:GITHUB_STEP_SUMMARY
+        }
+
+        @"
+        ### Result
+        - Version: $(python -m osgeo_utils.samples.gdalinfo --version)
+        - <details><summary>Build:</summary>
+            $(python -m osgeo_utils.samples.gdalinfo --build | Join-String -Separator "<br>`n  ")
+          </details>
+        - <details><summary>Raster formats:</summary>
+            $(python -m osgeo_utils.samples.gdalinfo --formats | Join-String -Separator "<br>`n  ")
+          </details>
+        - <details><summary>Vector formats:</summary>
+            $(python -m osgeo_utils.samples.ogrinfo --formats | Join-String -Separator "<br>`n  ")
+          </details>
+        - Wheel package: ${{ steps.setup-gdal.outputs.wheel-path }}
+
+        "@ >> $env:GITHUB_STEP_SUMMARY
+        $LASTEXITCODE=0   # Ignore exit code from "ogrinfo --formats"
 
     - name: Select PACKAGE_ID and PACKAGE_VER
       run: |

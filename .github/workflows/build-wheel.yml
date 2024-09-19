@@ -48,6 +48,20 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Initial job summary
+      shell: pwsh
+      run: |
+        @"
+        ### Build parameters
+        - runner-image: ${{ github.event.inputs.runner-image }}
+        - python-version: ${{ github.event.inputs.python-version }}
+        - gdal-version: ${{ github.event.inputs.gdal-version }}
+        - rebuild-cache: ${{ github.event.inputs.rebuild-cache }}
+        - use-conda: ${{ github.event.inputs.use-conda }}
+        - extra-packages: ${{ github.event.inputs.extra-packages }}
+
+        "@ >> $env:GITHUB_STEP_SUMMARY
+
     - name: Set up Python ${{ github.event.inputs.python-version }} in ${{ github.event.inputs.runner-image }}
       uses: actions/setup-python@v5
       with:
@@ -82,14 +96,28 @@ jobs:
         path: |
           ${{ steps.setup-gdal.outputs.wheel-path }}
 
-    - name: Examine result
+    - name: Examine result / Update job summary
       shell: pwsh
       run: |
         python -m osgeo_utils.samples.gdalinfo --version
         python -m osgeo_utils.samples.gdalinfo --build
-        python -m osgeo_utils.samples.gdalinfo --formats
-        python -m osgeo_utils.samples.ogrinfo --formats
-        python -c "from osgeo import gdal; print(gdal.VersionInfo(None))"
         echo "Wheel package ${{ steps.setup-gdal.outputs.wheel-path }}"
         echo "OSGeo path ${{ steps.setup-gdal.outputs.osgeo-path }}"
         echo "OSGeo utils path ${{ steps.setup-gdal.outputs.utils-path }}"
+
+        @"
+        ### Result
+        - Version: $(python -m osgeo_utils.samples.gdalinfo --version)
+        - <details><summary>Build:</summary>
+            $(python -m osgeo_utils.samples.gdalinfo --build | Join-String -Separator "<br>`n  ")
+          </details>
+        - <details><summary>Raster formats:</summary>
+            $(python -m osgeo_utils.samples.gdalinfo --formats | Join-String -Separator "<br>`n  ")
+          </details>
+        - <details><summary>Vector formats:</summary>
+            $(python -m osgeo_utils.samples.ogrinfo --formats | Join-String -Separator "<br>`n  ")
+          </details>
+        - Wheel package: ${{ env.WHEEL_NAME }}
+
+        "@ >> $env:GITHUB_STEP_SUMMARY
+        $LASTEXITCODE=0   # Ignore exit code from "ogrinfo --formats"
