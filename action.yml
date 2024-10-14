@@ -92,6 +92,11 @@ runs:
         ${{ inputs.base-dir }}/*.whl
       key: ${{ steps.info.outputs.cache-key }}
 
+  - name: Setup NuGet
+    uses: nuget/setup-nuget@v2
+    with:
+      nuget-api-key: ${{ inputs.GITHUB_TOKEN }}
+
   - name: Try NuGet package
     if: ${{ steps.wheel-cache.outputs.cache-hit != 'true' }}
     id: nuget-package
