@@ -38,7 +38,7 @@ on:
         - false
       extra-packages:
         description: "Install extra packages (conda, apt or brew)"
-        default: ""
+        default: "defaults::libkml defaults::libboost"
         required: false
       publish:
         description: "Publish result package in github"
