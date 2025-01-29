@@ -142,6 +142,13 @@ jobs:
     - name: Create NuGet package (${{ env.PACKAGE_ID }} ${{ env.PACKAGE_VER }})
       run: |
         $WHEEL_DIR = (Get-Item "${{ steps.setup-gdal.outputs.wheel-path }}").Directory
+        if ("${{ runner.os }}" -eq "Linux") {
+          echo "HACK: NuGet is not included in Ubuntu 24.04/noble, use Windows executable via mono"
+          sudo apt-get update
+          sudo apt-get install -y mono-devel
+          wget https://dist.nuget.org/win-x86-commandline/latest/nuget.exe
+          function nuget {mono nuget.exe $args}
+        }
         nuget pack GDAL.nuspec -BasePath $WHEEL_DIR -Version ${{ env.PACKAGE_VER }} `
             -Properties "id=${{ env.PACKAGE_ID }}"
         if ($LASTEXITCODE) {exit $LASTEXITCODE}

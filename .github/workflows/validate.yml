@@ -6,7 +6,7 @@ on:
   pull_request:
 
 env:
-  GDAL_VERSION: 'v3.9.3'
+  GDAL_VERSION: 'v3.10.2'
 
 jobs:
   #
@@ -42,6 +42,9 @@ jobs:
         gdal-version: "${{ env.GDAL_VERSION }}"
         rebuild-cache: true
         use-conda: ${{ matrix.use-conda }}
+        #HACK: With Linux/conda avoid libsqlite 3.49.1 as it will be linked via absolute path
+        # (use-cache job will fail, as conda libraries are copied)
+        extra-packages: ${{ matrix.use-conda && runner.os == 'Linux' && 'libsqlite!=3.49.1' || null }}
 
     - name: Check the package
       shell: pwsh
