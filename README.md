@@ -47,7 +47,7 @@ All the input parameters are optional
 steps:
 - uses: trundev/setup-gdal@main
   with:
-    gdal-version: 'v3.9.3'
+    gdal-version: 'v3.10.2'
     rebuild-cache: 'false'
     base-dir: 'GDAL~'
     cache-key-prefix: ''

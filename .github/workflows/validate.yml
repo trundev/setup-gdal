@@ -12,7 +12,7 @@ jobs:
   #
   # Validate GDAL build process
   #
-  rebuid-cache:
+  rebuild-cache:
     strategy:
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
@@ -50,12 +50,17 @@ jobs:
       shell: pwsh
       run: python -c "from osgeo import gdal; print(gdal.__name__)"
 
+    - name: Cleanup environment
+      if: ${{ runner.os == 'macOS' }}
+      shell: pwsh
+      run: echo "DYLD_LIBRARY_PATH=" >> ${env:GITHUB_ENV}
+
   #
   # Validate cached GDAL
   #
   # This is the same as above, but w/o "rebuild-cache: true"
   use-cache:
-    needs: rebuid-cache
+    needs: rebuild-cache
     strategy:
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
