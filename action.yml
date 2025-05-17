@@ -254,7 +254,9 @@ runs:
     shell: pwsh
     run: |
       # Prerequisites: numpy is needed to build gdal_array
-      python -m pip install -U pip setuptools wheel numpy
+      # HACK: After setuptools 80.3, the `easy_install.install_wrapper_scripts()` is removed
+      # from `command.easy_install`, see https://github.com/pypa/setuptools/issues/917
+      python -m pip install -U pip "setuptools<80.3" wheel numpy
 
       $BUILD_DIR = New-Item -EA SilentlyContinue -ItemType directory ${{ inputs.base-dir }}/build
       $INSTALL_DIR = New-Item -EA SilentlyContinue -ItemType directory ${{ inputs.base-dir }}/install-gdal
