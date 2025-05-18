@@ -145,7 +145,7 @@ runs:
     if: steps.nuget-package.outputs.outcome == 'failure'
     uses: actions/checkout@v4
     with:
-      repository: osgeo/gdal
+      repository: trundev/gdal
       ref: ${{ inputs.gdal-version }}
       path: ${{ inputs.base-dir }}/gdal
 
