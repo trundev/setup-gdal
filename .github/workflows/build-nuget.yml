@@ -15,11 +15,11 @@ on:
       python-version:
         description: "Version of Python to use"
         required: true
-        default: "3.13"
+        default: "3.14"
       gdal-version:
         description: "Version of GDAL to build"
         required: true
-        default: "v3.10.2"
+        default: "v3.13.1"
       rebuild-cache:
         description: "Delete existing wheel cache and create a new one"
         required: false
@@ -61,7 +61,7 @@ jobs:
         working-directory: nuget
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Initial job summary
       run: |
@@ -78,7 +78,7 @@ jobs:
         "@ >> $env:GITHUB_STEP_SUMMARY
 
     - name: Set up Python ${{ github.event.inputs.python-version }} in ${{ github.event.inputs.runner-image }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ github.event.inputs.python-version }}
 
@@ -162,7 +162,7 @@ jobs:
         echo "NUPKG_NAME set to $NUPKG_NAME"
 
     - name: Upload artifact (${{ env.PACKAGE_ID }})
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: ${{ env.PACKAGE_ID }}
         path: ${{ env.NUPKG_PATH }}

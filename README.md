@@ -14,7 +14,7 @@ See [action.yml](action.yml), also the [build-wheel.yml](.github/workflows/build
 
 ```yaml
 steps:
-- uses: actions/setup-python@v5
+- uses: actions/setup-python@v6
 - uses: trundev/setup-gdal@main
   with:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -47,7 +47,7 @@ All the input parameters are optional
 steps:
 - uses: trundev/setup-gdal@main
   with:
-    gdal-version: 'v3.10.2'
+    gdal-version: 'v3.13.1'
     rebuild-cache: 'false'
     base-dir: 'GDAL~'
     cache-key-prefix: ''

@@ -13,7 +13,7 @@ inputs:
     type: boolean
   gdal-version:
     description: "Version of GDAL to setup (OSGeo/gdal repository reference)"
-    default: "v3.10.2"
+    default: "v3.13.1"
     required: false
     type: string
   cache-key-prefix:
@@ -71,7 +71,7 @@ runs:
       echo "cache-key=$KEY" >> ${env:GITHUB_OUTPUT}
       echo "'info.outputs.cache-key' set to $KEY"
 
-  - uses: actions/github-script@v7
+  - uses: actions/github-script@v9
     if: inputs.rebuild-cache == 'true'
     with:
       script: |
@@ -85,7 +85,7 @@ runs:
           console.log("Delete cache failed: " + error.message)
         }
 
-  - uses: actions/cache@v4
+  - uses: actions/cache@v6
     id: wheel-cache
     with:
       path: |
@@ -143,7 +143,7 @@ runs:
 
   - name: Clone GDAL sources
     if: steps.nuget-package.outputs.outcome == 'failure'
-    uses: actions/checkout@v4
+    uses: actions/checkout@v7
     with:
       repository: osgeo/gdal
       ref: ${{ inputs.gdal-version }}
@@ -170,10 +170,11 @@ runs:
   - name: Setup conda
     if: ${{ inputs.use-conda == 'true' && steps.nuget-package.outputs.outcome == 'failure' }}
     id: setup-conda
-    uses: conda-incubator/setup-miniconda@v3
+    uses: conda-incubator/setup-miniconda@v4
     with:
       activate-environment: gdalenv
       channels: conda-forge
+      conda-remove-defaults: true
 
   - name: Install prerequisites (conda)
     if: ${{ steps.setup-conda.outcome == 'success' }}
